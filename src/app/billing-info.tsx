@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity
+  TouchableOpacity,
+  Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -18,6 +19,8 @@ const BillingInfoScreen = () => {
   const billingInfo: BillingInfo = JSON.parse(clientData as string);
 
   const [clientName, setClientName] = useState<string | null>(null);
+  const animatedValue = useRef(new Animated.Value(0)).current;
+  const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -30,8 +33,23 @@ const BillingInfoScreen = () => {
       }
     };
     loadProfile();
-    return () => { mounted = false; };
-  }, [billingInfo.clientId]);
+    
+    // Animate consumption number
+    const listener = animatedValue.addListener(({ value }) => {
+      setDisplayValue(Math.round(value));
+    });
+    
+    Animated.timing(animatedValue, {
+      toValue: billingInfo.consommationTotal,
+      duration: 2000,
+      useNativeDriver: false,
+    }).start();
+    
+    return () => {
+      mounted = false;
+      animatedValue.removeListener(listener);
+    };
+  }, [billingInfo.clientId, billingInfo.consommationTotal]);
 
   const handleBackPress = () => {
     router.back();
@@ -40,6 +58,15 @@ const BillingInfoScreen = () => {
   const handleViewPaidMonths = () => {
     router.push({
       pathname: '/paid-months',
+      params: {
+        clientId: billingInfo.clientId,
+      },
+    });
+  };
+
+  const handleViewUnpaidMonths = () => {
+    router.push({
+      pathname: '/unpaid-months',
       params: {
         clientId: billingInfo.clientId,
       },
@@ -65,7 +92,7 @@ const BillingInfoScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={handleBackPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Text style={styles.backArrowText}>←</Text>
@@ -102,7 +129,7 @@ const BillingInfoScreen = () => {
         <BillingCard title="💧 Consommation" style={styles.consumptionCard}>
           <View style={styles.cardContent}>
             <View style={styles.consumptionDisplay}>
-              <Text style={styles.consumptionNumber}>{billingInfo.consommationTotal}</Text>
+              <Text style={styles.consumptionNumber}>{displayValue}</Text>
               <Text style={styles.consumptionUnit}>m³</Text>
             </View>
             <Text style={styles.consumptionLabel}>Consommation totale</Text>
@@ -125,25 +152,30 @@ const BillingInfoScreen = () => {
           </View>
         </BillingCard>
 
-        {/* Payment Status Card */}
-        <BillingCard title="💳 Statut de Paiement" style={styles.paymentCard}>
-          <View style={styles.cardContent}>
-            <View style={styles.paymentStatusContainer}>
-              <StatusBadge status={billingInfo.status} />
-              <Text style={styles.paymentDescription}>
-                {billingInfo.status === 'paid' 
-                  ? 'Votre facture a été payée avec succès.' 
-                  : `Votre facture est en attente de paiement. Échéance: ${new Date(billingInfo.dueDate).toLocaleDateString('fr-FR')}`
-                }
-              </Text>
-            </View>
+        {/* Payment Status */}
+        <View style={styles.paymentStatusSection}>
+          <View style={styles.paymentStatusContainer}>
+            <StatusBadge status={billingInfo.status} />
+            <Text style={styles.paymentDescription}>
+              {billingInfo.status === 'paid'
+                ? 'Votre facture a été payée avec succès.'
+                : `Votre facture est en attente de paiement. Échéance: ${new Date(billingInfo.dueDate).toLocaleDateString('fr-FR')}`
+              }
+            </Text>
           </View>
-        </BillingCard>
+        </View>
 
-        {/* View Paid Months Button */}
-        <TouchableOpacity style={styles.paidMonthsButton} onPress={handleViewPaidMonths}>
-          <Text style={styles.paidMonthsButtonText}>📅 Voir tous les mois payés</Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleViewPaidMonths}>
+            <Text style={styles.actionButtonText}>📅 Mois payés</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButtonSecondary} onPress={handleViewUnpaidMonths}>
+            <Text style={styles.actionButtonSecondaryText}>📋 Mois impayés</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -206,40 +238,49 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginBottom: 20,
-    borderRadius: 16,
+    marginBottom: 24,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2563EB',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E293B',
     padding: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FAFBFC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   cardContent: {
     padding: 20,
   },
   invoiceCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#2563EB',
+    borderLeftWidth: 6,
+    borderLeftColor: '#3B82F6',
+    backgroundColor: '#FEFEFF',
   },
   consumptionCard: {
-    borderLeftWidth: 4,
+    borderLeftWidth: 6,
     borderLeftColor: '#06B6D4',
+    backgroundColor: '#FEFFFE',
   },
-  paymentCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
+  paymentStatusSection: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 20,
+    borderRadius: 20,
   },
   infoRow: {
     flexDirection: 'row',
@@ -271,9 +312,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   totalValue: {
-    fontSize: 18,
-    color: '#2563EB',
-    fontWeight: 'bold',
+    fontSize: 20,
+    color: '#3B82F6',
+    fontWeight: '700',
     flex: 1,
     textAlign: 'right',
   },
@@ -284,9 +325,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   consumptionNumber: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#06B6D4',
+    fontSize: 52,
+    fontWeight: '800',
+    color: '#0891B2',
+    letterSpacing: -1,
   },
   consumptionUnit: {
     fontSize: 20,
@@ -339,26 +381,56 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  paidMonthsButton: {
-    backgroundColor: '#10B981',
+  buttonContainer: {
+    flexDirection: 'row',
     marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
+    marginTop: 20,
+    gap: 12,
+  },
+  actionButton: {
+    backgroundColor: '#1E40AF',
+    flex: 1,
+    paddingVertical: 18,
+    borderRadius: 50,
     alignItems: 'center',
+    shadowColor: '#1E40AF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionButtonSecondary: {
+    backgroundColor: '#FFFFFF',
+    flex: 1,
+    paddingVertical: 18,
+    borderRadius: 50,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#1E40AF',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  paidMonthsButtonText: {
-    color: '#FFFFFF',
+  actionButtonSecondaryText: {
+    color: '#1E40AF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  bottomSpacer: {
+    height: 40,
   },
 });
 

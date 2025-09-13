@@ -92,6 +92,71 @@ const mockClients: Record<string, BillingInfo> = {
   }
 };
 
+// Mock unpaid billing data for unpaid months view
+const mockUnpaidBilling: Record<string, BillingInfo[]> = {
+  'STE001234': [
+    {
+      factureNo: 'FAC-2024-001234-02',
+      clientId: 'STE001234',
+      consommationTotal: 48.2,
+      moisFacturation: 'Février 2024',
+      amount: 135.60,
+      dueDate: '2024-03-15',
+      status: 'unpaid'
+    }
+  ],
+  'STE005678': [
+    {
+      factureNo: 'FAC-2024-005678-02',
+      clientId: 'STE005678',
+      consommationTotal: 65.7,
+      moisFacturation: 'Février 2024',
+      amount: 198.30,
+      dueDate: '2024-03-20',
+      status: 'unpaid'
+    },
+    {
+      factureNo: 'FAC-2024-005678-01',
+      clientId: 'STE005678',
+      consommationTotal: 62.3,
+      moisFacturation: 'Janvier 2024',
+      amount: 187.50,
+      dueDate: '2024-02-20',
+      status: 'unpaid'
+    }
+  ],
+  'STE009876': [],
+  'STE111222': [
+    {
+      factureNo: 'FAC-2024-111222-03',
+      clientId: 'STE111222',
+      consommationTotal: 78.9,
+      moisFacturation: 'Mars 2024',
+      amount: 256.70,
+      dueDate: '2024-04-25',
+      status: 'unpaid'
+    },
+    {
+      factureNo: 'FAC-2024-111222-02',
+      clientId: 'STE111222',
+      consommationTotal: 73.1,
+      moisFacturation: 'Février 2024',
+      amount: 238.90,
+      dueDate: '2024-03-25',
+      status: 'unpaid'
+    },
+    {
+      factureNo: 'FAC-2024-111222-01',
+      clientId: 'STE111222',
+      consommationTotal: 75.8,
+      moisFacturation: 'Janvier 2024',
+      amount: 245.30,
+      dueDate: '2024-02-25',
+      status: 'unpaid'
+    }
+  ]
+};
+
 // Historical billing data for all clients (paid months only)
 const mockHistoricalBilling: Record<string, BillingInfo[]> = {
   'STE001234': [
@@ -195,6 +260,22 @@ export const getPaidMonthsForClient = async (clientId: string): Promise<BillingI
     const dateB = new Date(b.paymentDate || b.dueDate);
     return dateB.getTime() - dateA.getTime();
   });
+};
+
+export const getUnpaidMonthsForClient = async (clientId: string): Promise<BillingInfo[]> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  const unpaidData = mockUnpaidBilling[clientId] || [];
+  
+  // Sort by due date ascending (oldest first - most urgent)
+  const unpaidBills = unpaidData
+    .filter(bill => bill.status === 'unpaid')
+    .sort((a, b) => {
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+  
+  return unpaidBills;
 };
 
 // New: Service function to get client profile information (e.g., name)

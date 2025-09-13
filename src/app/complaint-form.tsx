@@ -90,7 +90,14 @@ const ComplaintFormScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.backArrow} onPress={handleBackPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={styles.backArrowText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Réclamation</Text>
+        <View style={styles.placeholder} />
+      </View>
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -100,8 +107,8 @@ const ComplaintFormScreen = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          <View style={styles.spacer} />
           <View style={styles.header}>
-            <Text style={styles.title}>Déposer une Réclamation</Text>
             <Text style={styles.subtitle}>Client ID: {clientId}</Text>
             <Text style={styles.description}>
               Décrivez votre problème et nous vous contacterons rapidement
@@ -189,10 +196,7 @@ const ComplaintFormScreen = () => {
             </Text>
           </TouchableOpacity>
 
-          {/* Back Button */}
-          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-            <Text style={styles.backButtonText}>← Retour</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -204,6 +208,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 15,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1E40AF',
+    textAlign: 'center',
+    flex: 1,
+  },
+  placeholder: {
+    width: 44,
+  },
+  backArrow: {
+    paddingLeft: 10,
+  },
+  backArrowText: {
+    fontSize: 24,
+    lineHeight: 24,
+    color: '#1E40AF',
+    fontWeight: 'bold',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  spacer: {
+    height: 20,
+  },
   keyboardView: {
     flex: 1,
   },
@@ -211,18 +246,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: 20,
   },
   header: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2563EB',
-    marginBottom: 8,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
@@ -254,22 +282,22 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '45%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: '#F1F5F9',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
   },
   typeCardSelected: {
-    borderColor: '#2563EB',
+    borderColor: '#1E40AF',
     backgroundColor: '#EFF6FF',
   },
   typeIcon: {
@@ -283,7 +311,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   typeTitleSelected: {
-    color: '#2563EB',
+    color: '#1E40AF',
     fontWeight: '600',
   },
   label: {
@@ -294,21 +322,21 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     fontSize: 16,
     color: '#111827',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
   },
   textArea: {
     height: 120,
@@ -321,19 +349,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#1E40AF',
+    borderRadius: 50,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
+    shadowColor: '#1E40AF',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
     marginBottom: 16,
   },
   submitButtonDisabled: {
@@ -345,17 +373,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  backButton: {
-    backgroundColor: '#6B7280',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+  bottomSpacer: {
+    height: 40,
   },
 });
 
