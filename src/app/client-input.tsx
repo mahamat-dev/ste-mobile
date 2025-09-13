@@ -9,44 +9,59 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getClientBillingInfo } from '../services/mockDataService';
 
 const ClientInputScreen = () => {
-  const [clientId, setClientId] = useState('');
+  const [searchId, setSearchId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSearch = async () => {
-    if (!clientId.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer un ID client valide.');
+    if (!searchId.trim()) {
+      Alert.alert('Erreur', 'Veuillez entrer un ID valide.');
       return;
     }
 
     setIsLoading(true);
+    const trimmedId = searchId.trim().toUpperCase();
 
     try {
-      const billingInfo = await getClientBillingInfo(clientId.trim());
+      // Check if it's an agent ID (starts with STEA)
+      if (trimmedId.startsWith('STEA')) {
+        // Navigate directly to agent login page
+        router.push({
+          pathname: '/agent-login',
+          params: {
+            agentId: trimmedId
+          }
+        });
+        return;
+      }
+
+      // Check if it's a client ID
+      const billingInfo = await getClientBillingInfo(trimmedId);
       
       if (billingInfo) {
-        // Navigate to billing info screen with the data
+        // Navigate to router page with options for client
         router.push({
-          pathname: '/billing-info',
+          pathname: '/client-router',
           params: {
-            clientData: JSON.stringify(billingInfo)
+            clientId: trimmedId
           }
         });
       } else {
         // Show error modal for invalid client ID
         Alert.alert(
-          'Client non trouvé',
-          `L'ID client "${clientId}" n'existe pas dans notre système. Veuillez vérifier et réessayer.`,
+          'ID non trouvé',
+          `L'ID "${trimmedId}" n'existe pas dans notre système. Veuillez vérifier et réessayer.`,
           [
             {
               text: 'Réessayer',
               style: 'default',
-              onPress: () => setClientId('')
+              onPress: () => setSearchId('')
             }
           ]
         );
@@ -67,45 +82,40 @@ const ClientInputScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>STE Water Company</Text>
-          <Text style={styles.subtitle}>Consultez vos informations de facturation</Text>
+        <View style={styles.topSection}>
+          <View style={styles.header}>
+            <Text style={styles.title}>STE</Text>
+          </View>
+
+          <Image
+            source={require('../../assets/magnifier.png')}
+            style={styles.searchImage}
+          />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>ID Client</Text>
+        <View style={styles.bottomSection}>
           <TextInput
             style={styles.input}
-            value={clientId}
-            onChangeText={setClientId}
-            placeholder="Entrez votre ID client (ex: STE001234)"
+            value={searchId}
+            onChangeText={setSearchId}
+            placeholder="Entrez votre ID (ex: STE001234 ou STEA001234)"
             placeholderTextColor="#9CA3AF"
             autoCapitalize="characters"
             autoCorrect={false}
             editable={!isLoading}
           />
-        </View>
 
-        <TouchableOpacity
-          style={[styles.searchButton, isLoading && styles.searchButtonDisabled]}
-          onPress={handleSearch}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <Text style={styles.searchButtonText}>Rechercher</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.helpContainer}>
-          <Text style={styles.helpText}>
-            Vous pouvez tester avec ces IDs clients :
-          </Text>
-          <Text style={styles.exampleText}>STE001234 (Payé)</Text>
-          <Text style={styles.exampleText}>STE005678 (Impayé)</Text>
-          <Text style={styles.exampleText}>STE009876 (Payé)</Text>
-          <Text style={styles.exampleText}>STE111222 (Impayé)</Text>
+          <TouchableOpacity
+            style={[styles.searchButton, isLoading && styles.searchButtonDisabled]}
+            onPress={handleSearch}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.searchButtonText}>Rechercher</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -115,107 +125,79 @@ const ClientInputScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 40,
     justifyContent: 'center',
+  },
+  topSection: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  bottomSection: {
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 30,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2563EB',
-    marginBottom: 8,
+    fontSize: 72,
+    fontWeight: '800',
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#1E40AF',
+    marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
+    width: '100%',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
+    fontSize: 17,
+    fontFamily: 'Inter_400Regular',
+    color: '#64748B',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    paddingHorizontal: 10,
   },
-  inputContainer: {
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+  searchImage: {
+    width: 120,
+    height: 120,
+    alignSelf: 'center',
   },
   input: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 50,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     fontSize: 16,
-    color: '#111827',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    fontFamily: 'Inter_400Regular',
+    color: '#0F172A',
+    marginBottom: 20,
   },
   searchButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#1E40AF',
+    borderRadius: 50,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 32,
+    minHeight: 56,
   },
   searchButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    shadowOpacity: 0.1,
+    backgroundColor: '#94A3B8',
   },
   searchButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.3,
   },
-  helpContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  helpText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  exampleText: {
-    fontSize: 14,
-    color: '#2563EB',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    marginBottom: 4,
-  },
+
 });
 
 export default ClientInputScreen;

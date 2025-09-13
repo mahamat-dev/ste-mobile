@@ -1,4 +1,4 @@
-// Mock Data Service for STE Water Company App
+// Mock Data Service for STE App
 // Provides client billing information lookup functionality
 
 export interface BillingInfo {

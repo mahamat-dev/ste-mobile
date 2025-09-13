@@ -65,14 +65,15 @@ const BillingInfoScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={handleBackPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={styles.backArrowText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Informations de Facturation</Text>
+      </View>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Informations de Facturation</Text>
-          <Text style={styles.clientId}>
-            Client: {clientName ? `${clientName} (${billingInfo.clientId})` : billingInfo.clientId}
-          </Text>
-        </View>
+        <View style={styles.spacer} />
 
         {/* Invoice Card */}
         <BillingCard title="📄 Facture" style={styles.invoiceCard}>
@@ -143,11 +144,6 @@ const BillingInfoScreen = () => {
         <TouchableOpacity style={styles.paidMonthsButton} onPress={handleViewPaidMonths}>
           <Text style={styles.paidMonthsButtonText}>📅 Voir tous les mois payés</Text>
         </TouchableOpacity>
-
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Text style={styles.backButtonText}>← Nouvelle Recherche</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -156,10 +152,40 @@ const BillingInfoScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    top: 15,
     backgroundColor: '#F8FAFC',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 30,
+  },
+  headerTitle: {
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    flex: 1,
+  },
+  placeholder: {
+    width: 44,
+  },
+
+  backArrowText: {
+    fontSize: 24,
+    lineHeight: 24,
+    color: '#1E40AF',
+    fontWeight: 'bold',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   scrollView: {
     flex: 1,
+  },
+  spacer: {
+    height: 20,
   },
   header: {
     padding: 24,
@@ -180,16 +206,16 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
   cardTitle: {
     fontSize: 18,
@@ -318,31 +344,18 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
-    shadowColor: '#10B981',
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
   paidMonthsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  backButton: {
-    backgroundColor: '#6B7280',
-    marginHorizontal: 16,
-    marginVertical: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  backButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
