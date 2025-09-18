@@ -167,9 +167,23 @@ const MeterReadingScreen = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      const formattedDate = new Date().toLocaleString();
       const message = isInaccessible 
-        ? 'Relevé enregistré avec indication d\'inaccessibilité.'
-        : `Relevé enregistré avec succès.\nIndex: ${currentIndex}\nPhoto: ${selectedImage}`;
+        ? (
+            'Relevé enregistré: compteur inaccessible.\n' +
+            `Client: ${clientInfo.name} (${clientInfo.id})\n` +
+            `Compteur: ${clientInfo.meterNumber}\n` +
+            `Zone: ${clientInfo.zoneCode}\n` +
+            `Date: ${formattedDate}`
+          )
+        : (
+            'Relevé enregistré avec succès.\n' +
+            `Client: ${clientInfo.name} (${clientInfo.id})\n` +
+            `Compteur: ${clientInfo.meterNumber}\n` +
+            `Index relevé: ${currentIndex}\n` +
+            'Photo jointe: Oui\n' +
+            `Date: ${formattedDate}`
+          );
       
       Alert.alert(
         'Succès',
@@ -312,51 +326,25 @@ const MeterReadingScreen = () => {
               <Text style={styles.label}>Photos (capturer ou télécharger) *</Text>
               
               {selectedImage ? (
-                <View style={styles.photoPreviewContainer}>
-                  <View style={styles.photoPreview}>
-                    <Image 
-                      source={{ uri: 'https://via.placeholder.com/300x200/1E40AF/FFFFFF?text=Photo+Preview' }} 
-                      style={styles.previewImage}
+                <View style={styles.thumbnailWrapper}>
+                  <TouchableOpacity onPress={handleChoosePhoto} activeOpacity={0.85}>
+                    <Image
+                      source={{ uri: selectedImage }}
+                      style={styles.thumbnailImage}
                       resizeMode="cover"
                     />
-                    <Text style={styles.photoName}>{selectedImage}</Text>
-                  </View>
-                  
-                  <View style={styles.photoActions}>
-                    <TouchableOpacity 
-                      style={styles.viewPhotoButton}
-                      onPress={() => Alert.alert('Aperçu Photo', `Affichage de: ${selectedImage}`)}
-                    >
-                      <Text style={styles.viewPhotoButtonText}>👁 Voir</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={styles.removePhotoButton}
-                      onPress={() => {
-                        Alert.alert(
-                          'Supprimer Photo',
-                          'Êtes-vous sûr de vouloir supprimer cette photo?',
-                          [
-                            { text: 'Annuler', style: 'cancel' },
-                            { 
-                              text: 'Supprimer', 
-                              style: 'destructive',
-                              onPress: () => setSelectedImage(null)
-                            }
-                          ]
-                        );
-                      }}
-                    >
-                      <Text style={styles.removePhotoButtonText}>🗑 Supprimer</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={styles.changePhotoButton}
-                      onPress={handleChoosePhoto}
-                    >
-                      <Text style={styles.changePhotoButtonText}>📷 Changer</Text>
-                    </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityLabel="Remove photo"
+                    style={styles.thumbnailClose}
+                    onPress={() => {
+                      setSelectedImage(null);
+                      // Immediately prompt to pick another photo after removing
+                      setTimeout(() => handleChoosePhoto(), 100);
+                    }}
+                  >
+                    <Text style={styles.thumbnailCloseText}>×</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <View>
@@ -591,6 +579,43 @@ const styles = StyleSheet.create({
   photoSection: {
     marginBottom: 24,
   },
+  thumbnailWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F3F4F6',
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailClose: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 1.5,
+    elevation: 2,
+  },
+  thumbnailCloseText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+    lineHeight: 16,
+  },
   photoPreviewContainer: {
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
@@ -598,6 +623,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+
   photoPreview: {
     alignItems: 'center',
     marginBottom: 16,
