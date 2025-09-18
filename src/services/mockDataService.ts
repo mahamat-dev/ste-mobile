@@ -20,6 +20,17 @@ export interface Client {
   phoneNumber: string;
 }
 
+export interface MeterInfo {
+  clientId: string;
+  clientName: string;
+  meterNumber: string;
+  zoneCode: string;
+  longitude: string;
+  latitude: string;
+  currentIndex: number;
+  lastReadingDate: string;
+}
+
 export type PaymentStatus = 'paid' | 'unpaid';
 
 // Mock client profiles for displaying client names and details
@@ -47,6 +58,60 @@ const mockClientProfiles: Record<string, Client> = {
     name: 'Fatimé Ibrahim',
     address: 'Boulevard Chari, Moundou',
     phoneNumber: '+235 66 00 00 04',
+  },
+};
+
+// Mock meter information for clients
+const mockMeterInfo: Record<string, MeterInfo> = {
+  'CL-1001': {
+    clientId: 'CL-1001',
+    clientName: 'MAHAMAT HASSAN',
+    meterNumber: 'MTR-001',
+    zoneCode: 'AR-01',
+    longitude: '15.0224491936516',
+    latitude: '12.1497712614681',
+    currentIndex: 1200,
+    lastReadingDate: '2024-01-15',
+  },
+  'STE001234': {
+    clientId: 'STE001234',
+    clientName: 'Jean Dupont',
+    meterNumber: 'MTR-002',
+    zoneCode: 'AR-02',
+    longitude: '15.0334491936516',
+    latitude: '12.1597712614681',
+    currentIndex: 1150,
+    lastReadingDate: '2024-01-20',
+  },
+  'STE005678': {
+    clientId: 'STE005678',
+    clientName: 'Amina Saleh',
+    meterNumber: 'MTR-003',
+    zoneCode: 'AR-03',
+    longitude: '15.0444491936516',
+    latitude: '12.1697712614681',
+    currentIndex: 980,
+    lastReadingDate: '2024-01-18',
+  },
+  'STE009876': {
+    clientId: 'STE009876',
+    clientName: 'Mahamat Idriss',
+    meterNumber: 'MTR-004',
+    zoneCode: 'AR-04',
+    longitude: '15.0554491936516',
+    latitude: '12.1797712614681',
+    currentIndex: 1350,
+    lastReadingDate: '2024-01-22',
+  },
+  'STE111222': {
+    clientId: 'STE111222',
+    clientName: 'Fatimé Ibrahim',
+    meterNumber: 'MTR-005',
+    zoneCode: 'AR-05',
+    longitude: '15.0664491936516',
+    latitude: '12.1897712614681',
+    currentIndex: 875,
+    lastReadingDate: '2024-01-25',
   },
 };
 
@@ -301,5 +366,12 @@ export const formatCurrency = (amount: number): string => {
 
 // Helper function to format consumption
 export const formatConsumption = (consumption: number): string => {
-  return `${consumption} m³`;
+  return `${consumption.toFixed(1)} m³`;
+};
+
+// Get meter information for a client
+export const getClientMeterInfo = async (clientId: string): Promise<MeterInfo | null> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return mockMeterInfo[clientId] || null;
 };

@@ -50,28 +50,15 @@ const AgentLoginScreen = () => {
       const agent = mockAgents[agentId as string];
       
       if (agent && agent.password === password.trim()) {
-        Alert.alert(
-          'Connexion Réussie',
-          `Bienvenue ${agent.name}!\nDépartement: ${agent.department}`,
-          [
-            {
-              text: 'Continuer',
-              onPress: () => {
-                // In a real app, navigate to agent dashboard
-                Alert.alert(
-                  'Tableau de Bord Agent',
-                  'Fonctionnalité en cours de développement.\nVous seriez maintenant redirigé vers le tableau de bord agent.',
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => router.push('/')
-                    }
-                  ]
-                );
-              }
-            }
-          ]
-        );
+        // Navigate to agent dashboard with agent information
+        router.push({
+          pathname: '/agent-dashboard',
+          params: {
+            agentId: agentId as string,
+            agentName: agent.name,
+            department: agent.department,
+          }
+        });
       } else {
         Alert.alert(
           'Erreur de Connexion',
