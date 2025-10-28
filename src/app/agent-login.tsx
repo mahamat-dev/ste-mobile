@@ -12,69 +12,40 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
 
 const AgentLoginScreen = () => {
   const router = useRouter();
   const { agentId } = useLocalSearchParams();
+  const { login } = useAuth();
   
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Mock agent data for demonstration
-  const mockAgents: Record<string, { name: string; password: string; department: string }> = {
-    'STEA001234': {
-      name: 'Agent Mahamat Ali',
-      password: 'agent123',
-      department: 'Service Client'
-    },
-    'STEA005678': {
-      name: 'Agent Fatima Hassan',
-      password: 'agent456',
-      department: 'Maintenance'
-    },
-  };
-
   const handleLogin = async () => {
-    if (!password.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre mot de passe.');
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Erreur', 'Veuillez entrer votre email et mot de passe.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const agent = mockAgents[agentId as string];
-      
-      if (agent && agent.password === password.trim()) {
-        // Navigate to agent dashboard with agent information
-        router.push({
-          pathname: '/agent-dashboard',
-          params: {
-            agentId: agentId as string,
-            agentName: agent.name,
-            department: agent.department,
-          }
-        });
-      } else {
-        Alert.alert(
-          'Erreur de Connexion',
-          'Mot de passe incorrect. Veuillez réessayer.',
-          [
-            {
-              text: 'Réessayer',
-              onPress: () => setPassword('')
-            }
-          ]
-        );
-      }
-    } catch (error) {
+      await login(email.trim(), password.trim());
+      // Navigate to agent dashboard on successful login
+      router.replace('/agent-dashboard');
+    } catch (error: any) {
       Alert.alert(
-        'Erreur',
-        'Une erreur est survenue lors de la connexion. Veuillez réessayer.'
+        'Erreur de Connexion',
+        error.message || 'Identifiants incorrects. Veuillez réessayer.',
+        [
+          {
+            text: 'Réessayer',
+            onPress: () => setPassword('')
+          }
+        ]
       );
     } finally {
       setIsLoading(false);
@@ -110,10 +81,24 @@ const AgentLoginScreen = () => {
             </View>
             <Text style={styles.title}>Connexion Agent</Text>
             <Text style={styles.subtitle}>STE</Text>
-            <Text style={styles.agentId}>ID Agent: {agentId}</Text>
           </View>
 
           <View style={styles.formContainer}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Entrez votre email"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+              />
+            </View>
+
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Mot de Passe</Text>
               <View style={styles.passwordContainer}>
@@ -159,11 +144,8 @@ const AgentLoginScreen = () => {
 
           <View style={styles.helpContainer}>
             <Text style={styles.helpTitle}>Informations de Test</Text>
-            <Text style={styles.helpText}>Agent ID: STEA001234</Text>
+            <Text style={styles.helpText}>Email: agent@example.com</Text>
             <Text style={styles.helpText}>Mot de passe: agent123</Text>
-            <Text style={styles.helpDivider}>ou</Text>
-            <Text style={styles.helpText}>Agent ID: STEA005678</Text>
-            <Text style={styles.helpText}>Mot de passe: agent456</Text>
           </View>
 
           <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
@@ -244,6 +226,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: '#111827',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   passwordContainer: {
     flexDirection: 'row',

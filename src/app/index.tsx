@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { View, Image, StyleSheet, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
 
 const SplashScreen = () => {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const fadeAnim = new Animated.Value(0);
 
   useEffect(() => {
@@ -14,13 +16,19 @@ const SplashScreen = () => {
       useNativeDriver: true,
     }).start();
 
-    // Auto-navigate to client input after 2.5 seconds
+    // Wait for auth to load, then navigate
     const timer = setTimeout(() => {
-      router.push('/client-input');
-    }, 2500);
+      if (!isLoading) {
+        if (isAuthenticated) {
+          router.replace('/agent-dashboard');
+        } else {
+          router.replace('/client-input');
+        }
+      }
+    }, 2000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isLoading, isAuthenticated]);
 
   return (
     <View style={styles.container}>

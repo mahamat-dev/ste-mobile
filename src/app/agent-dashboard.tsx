@@ -9,13 +9,20 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
+import { TextInput } from 'react-native';
+import { meterApi } from '../services/api';
 
 const AgentDashboardScreen = () => {
   const router = useRouter();
-  const { agentId, agentName, department } = useLocalSearchParams();
+  const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
+  const [readingQuery, setReadingQuery] = useState('');
+  const [isLoadingReadings, setIsLoadingReadings] = useState(false);
+  const [readings, setReadings] = useState<any[]>([]);
+  const [selectedMeterId, setSelectedMeterId] = useState<number | null>(null);
   const [stats, setStats] = useState({
     totalClients: 0,
     pendingComplaints: 0,
@@ -24,8 +31,16 @@ const AgentDashboardScreen = () => {
   });
 
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) return;
+    
+    // Redirect to login if not authenticated
+    if (!isAuthenticated) {
+      router.replace('/agent-login');
+      return;
+    }
     loadDashboardData();
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -56,7 +71,15 @@ const AgentDashboardScreen = () => {
         { 
           text: 'Déconnexion', 
           style: 'destructive',
-          onPress: () => router.push('/')
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/');
+            } catch (error) {
+              console.error('Logout error:', error);
+              router.replace('/');
+            }
+          }
         }
       ]
     );
@@ -88,119 +111,176 @@ const AgentDashboardScreen = () => {
     );
   };
 
-  if (isLoading) {
+  const handleViewReadings = async () => {
+    const query = readingQuery.trim();
+    if (!query) {
+      Alert.alert('Erreur', 'Veuillez entrer un numéro de compteur.');
+      return;
+    }
+
+    setIsLoadingReadings(true);
+    setReadings([]);
+    try {
+      const search = await meterApi.getByMeterNumber(query);
+      if (!search.success || !search.data?.meter?.meterId) {
+        throw new Error('Compteur introuvable');
+      }
+      const meterId = search.data.meter.meterId;
+      const list = await meterApi.getReadings(meterId);
+      setReadings(list.data || []);
+      setSelectedMeterId(meterId);
+    } catch (error: any) {
+      Alert.alert('Erreur', error?.message || "Impossible d'afficher les relevés.");
+    } finally {
+      setIsLoadingReadings(false);
+    }
+  };
+
+  // Show loading while auth is initializing
+  if (authLoading || isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1E40AF" />
-          <Text style={styles.loadingText}>Chargement du tableau de bord...</Text>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const roleLabel = user?.role?.name || user?.userType || user?.department;
+  const displayName = (user?.name || '').trim();
+  const shouldHideName = displayName && (
+    (roleLabel && displayName.toLowerCase() === String(roleLabel).toLowerCase()) ||
+    displayName.toLowerCase() === 'agent'
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.agentInfo}>
-            <Text style={styles.welcomeText}>Bienvenue</Text>
-            <Text style={styles.agentName}>{agentName}</Text>
-            <Text style={styles.department}>{department}</Text>
-          </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Déconnexion</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Statistics Cards */}
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.profileSection}>
+              <View style={styles.avatarContainer}>
+                <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'A'}</Text>
+              </View>
+              <View style={styles.userInfo}>
+                <View style={styles.nameRow}>
+                  {!shouldHideName && displayName ? (
+                    <Text style={styles.userName}>{displayName}</Text>
+                  ) : null}
+                </View>
+                {roleLabel ? (
+                  <View style={styles.roleChip}>
+                    <Text style={styles.roleText}>{roleLabel}</Text>
+                  </View>
+                ) : null}
+                <Text style={styles.userEmail}>{user?.email || ''}</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Text style={styles.logoutIcon}>⎋</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {/* Statistics */}
         <View style={styles.statsContainer}>
-          <Text style={styles.sectionTitle}>Statistiques du Jour</Text>
-          
+          <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
           <View style={styles.statsGrid}>
-            <View style={[styles.statCard, styles.statCardPrimary]}>
-              <Text style={styles.statNumber}>{stats.totalClients}</Text>
-              <Text style={styles.statLabel}>Clients Totaux</Text>
-            </View>
-            
-            <View style={[styles.statCard, styles.statCardWarning]}>
-              <Text style={styles.statNumber}>{stats.pendingComplaints}</Text>
-              <Text style={styles.statLabel}>Plaintes en Attente</Text>
-            </View>
-            
-            <View style={[styles.statCard, styles.statCardDanger]}>
-              <Text style={styles.statNumber}>{stats.unpaidBills}</Text>
-              <Text style={styles.statLabel}>Factures Impayées</Text>
-            </View>
-            
-            <View style={[styles.statCard, styles.statCardSuccess]}>
+            <View style={[styles.statCardFull, styles.statCardSuccess]}>
+              <View style={styles.statIconContainer}>
+                <Text style={styles.statIcon}>✓</Text>
+              </View>
               <Text style={styles.statNumber}>{stats.todayTasks}</Text>
-              <Text style={styles.statLabel}>Tâches du Jour</Text>
+              <Text style={styles.statLabel}>Tâches du jour</Text>
             </View>
           </View>
         </View>
 
-        {/* Quick Actions */}
+        {/* Action principale */}
         <View style={styles.actionsContainer}>
-          <Text style={styles.sectionTitle}>Actions Rapides</Text>
-          
-          <TouchableOpacity style={styles.actionCard} onPress={handleClientSearch}>
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>🔍</Text>
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Rechercher un Client</Text>
-              <Text style={styles.actionDescription}>Accéder aux informations de facturation</Text>
-            </View>
-            <Text style={styles.actionArrow}>›</Text>
+          <Text style={styles.sectionTitle}>Action Principale</Text>
+          <View style={styles.actionsGridSingle}>
+            <TouchableOpacity style={styles.actionCardHero} onPress={handleMeterReading}>
+              <View style={styles.actionCardHeader}>
+                <View style={[styles.actionIconHero, { backgroundColor: '#DCFCE7' }]}>
+                  <Text style={styles.actionIconTextHero}>📏</Text>
+                </View>
+              </View>
+              <Text style={styles.actionTitleHero}>Relevé de Compteur</Text>
+              <Text style={styles.actionDescriptionHero}>Commencer un nouveau relevé</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Historique des Relevés */}
+        <Text style={styles.sectionTitle}>Historique des Relevés</Text>
+        <View style={styles.readingsCard}>
+          <Text style={styles.readingsLabel}>Numéro de Compteur</Text>
+          <TextInput
+            style={styles.readingsInput}
+            value={readingQuery}
+            onChangeText={setReadingQuery}
+            placeholder="Ex: STE001234"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="none"
+          />
+          <TouchableOpacity 
+            style={[styles.readingsButton, isLoadingReadings && styles.buttonDisabled]} 
+            onPress={handleViewReadings}
+            disabled={isLoadingReadings}
+          >
+            {isLoadingReadings ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.readingsButtonText}>Voir relevés</Text>
+            )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard} onPress={handleComplaints}>
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>📋</Text>
+          {readings.length > 0 ? (
+            <View style={styles.readingsList}>
+              {readings.map((item, idx) => {
+                const date = new Date(item.readingDate);
+                let photosCount = 0;
+                try {
+                  photosCount = item.photoUrls ? JSON.parse(item.photoUrls)?.length || 0 : 0;
+                } catch {}
+                return (
+                  <TouchableOpacity
+                    key={`${item.readingId}-${idx}`}
+                    style={styles.readingRow}
+                    onPress={() => {
+                      if (!selectedMeterId) {
+                        Alert.alert('Erreur', 'Compteur introuvable pour ce relevé.');
+                        return;
+                      }
+                      router.push({
+                        pathname: '/reading-details',
+                        params: {
+                          meterId: String(selectedMeterId),
+                          readingId: String(item.readingId),
+                        },
+                      });
+                    }}
+                  >
+                    <View style={styles.readingRowLeft}>
+                      <Text style={styles.readingDate}>{date.toLocaleString()}</Text>
+                      <Text style={styles.readingValue}>Index: {Number(item.readingValue)}</Text>
+                      <Text style={styles.readingStatus}>Statut: {item.status}</Text>
+                    </View>
+                    <View style={styles.readingRowRight}>
+                      <View style={[styles.photoBadge, photosCount > 0 ? styles.photoBadgeActive : styles.photoBadgeMuted]}>
+                        <Text style={styles.photoBadgeText}>{photosCount} Photo(s)</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestion des Plaintes</Text>
-              <Text style={styles.actionDescription}>Traiter les plaintes clients</Text>
-            </View>
-            <Text style={styles.actionArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={handleMeterReading}>
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>📏</Text>
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Relevé de Compteur</Text>
-              <Text style={styles.actionDescription}>Effectuer des relevés de compteurs</Text>
-            </View>
-            <Text style={styles.actionArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={handleBillingManagement}>
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>💰</Text>
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Gestion de Facturation</Text>
-              <Text style={styles.actionDescription}>Gérer les factures et paiements</Text>
-            </View>
-            <Text style={styles.actionArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={handleReports}>
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>📊</Text>
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Rapports</Text>
-              <Text style={styles.actionDescription}>Générer des rapports détaillés</Text>
-            </View>
-            <Text style={styles.actionArrow}>›</Text>
-          </TouchableOpacity>
+          ) : (
+            <Text style={styles.readingsEmpty}>Aucun relevé trouvé pour ce compteur.</Text>
+          )}
         </View>
 
         <View style={styles.spacer} />
@@ -212,7 +292,7 @@ const AgentDashboardScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -226,61 +306,103 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 0,
+    gap: 16,
   },
-  agentInfo: {
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
+    gap: 10,
   },
-  welcomeText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
+  avatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 0,
+    position: 'relative',
   },
-  agentName: {
-    fontSize: 20,
+  avatarText: {
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1E40AF',
-    marginBottom: 2,
+    color: '#FFFFFF',
   },
-  department: {
-    fontSize: 14,
-    color: '#374151',
-    backgroundColor: '#E5E7EB',
+  avatarBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#111827',
+  },
+  avatarBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginRight: 6,
+  },
+  roleChip: {
+    backgroundColor: '#EBF5FF',
+    padding: 6,
     borderRadius: 8,
     alignSelf: 'flex-start',
+    flexGrow: 0,
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+    textTransform: 'uppercase',
+
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   logoutButton: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  logoutButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+  logoutIcon: {
+    fontSize: 18,
+    color: '#DC2626',
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: 16,
   },
   sectionTitle: {
     fontSize: 20,
@@ -296,37 +418,50 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
+  actionsGridSingle: {
+    flexDirection: 'column',
+    gap: 16,
+  },
   statCard: {
     width: '48%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  statCardFull: {
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   statCardPrimary: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#1E40AF',
+    backgroundColor: '#EBF5FF',
+    borderColor: '#DBEAFE',
   },
   statCardWarning: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
   },
   statCardDanger: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA',
   },
   statCardSuccess: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
+    backgroundColor: '#D1FAE5',
+    borderColor: '#A7F3D0',
   },
   statNumber: {
     fontSize: 32,
@@ -335,61 +470,193 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
     textAlign: 'center',
+    fontWeight: '500',
+  },
+  statIconContainer: {
+    marginBottom: 8,
+  },
+  statIcon: {
+    fontSize: 28,
   },
   actionsContainer: {
     marginBottom: 32,
   },
-  actionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+  actionsGrid: {
     flexDirection: 'row',
+    gap: 16,
+  },
+  actionCardLarge: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  actionCardHero: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EBF4FF',
+  actionCardHeader: {
+    marginBottom: 16,
+  },
+  actionIconLarge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
-  actionIconText: {
-    fontSize: 24,
+  actionIconHero: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  actionContent: {
-    flex: 1,
+  actionIconTextLarge: {
+    fontSize: 32,
   },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E40AF',
+  actionIconTextHero: {
+    fontSize: 36,
+  },
+  actionTitleLarge: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 4,
+    textAlign: 'center',
   },
-  actionDescription: {
+  actionTitleHero: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  actionDescriptionLarge: {
     fontSize: 14,
     color: '#6B7280',
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  actionArrow: {
-    fontSize: 24,
-    color: '#9CA3AF',
-    fontWeight: '300',
+  actionDescriptionHero: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   spacer: {
     height: 32,
+  },
+  readingsCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 24,
+  },
+  readingsLabel: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  readingsInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    color: '#111827',
+  },
+  readingsButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  readingsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  readingsList: {
+    marginTop: 8,
+    gap: 8,
+  },
+  readingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+  },
+  readingRowLeft: {
+    flex: 1,
+  },
+  readingRowRight: {
+    marginLeft: 12,
+  },
+  readingDate: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  readingValue: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '700',
+  },
+  readingStatus: {
+    fontSize: 13,
+    color: '#374151',
+    marginTop: 4,
+  },
+  photoBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  photoBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  photoBadgeActive: {
+    backgroundColor: '#D1FAE5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  photoBadgeMuted: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  readingsEmpty: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
   },
 });
 

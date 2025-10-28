@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getClientBillingInfo } from '../services/mockDataService';
@@ -19,33 +18,23 @@ const ClientInputScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleSearch = async () => {
+  const handleAgentLogin = () => {
+    router.push('/agent-login');
+  };
+
+  const handleCustomerSearch = async () => {
     if (!searchId.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer un ID valide.');
+      Alert.alert('Erreur', 'Veuillez entrer votre numéro de compteur.');
       return;
     }
 
     setIsLoading(true);
-    const trimmedId = searchId.trim().toUpperCase();
+    const trimmedId = searchId.trim();
 
     try {
-      // Check if it's an agent ID (starts with STEA)
-      if (trimmedId.startsWith('STEA')) {
-        // Navigate directly to agent login page
-        router.push({
-          pathname: '/agent-login',
-          params: {
-            agentId: trimmedId
-          }
-        });
-        return;
-      }
-
-      // Check if it's a client ID
       const billingInfo = await getClientBillingInfo(trimmedId);
       
       if (billingInfo) {
-        // Navigate to router page with options for client
         router.push({
           pathname: '/client-router',
           params: {
@@ -53,14 +42,12 @@ const ClientInputScreen = () => {
           }
         });
       } else {
-        // Show error modal for invalid client ID
         Alert.alert(
-          'ID non trouvé',
-          `L'ID "${trimmedId}" n'existe pas dans notre système. Veuillez vérifier et réessayer.`,
+          'Compteur non trouvé',
+          `Le numéro "${trimmedId}" n'existe pas. Veuillez vérifier et réessayer.`,
           [
             {
               text: 'Réessayer',
-              style: 'default',
               onPress: () => setSearchId('')
             }
           ]
@@ -69,7 +56,7 @@ const ClientInputScreen = () => {
     } catch (error) {
       Alert.alert(
         'Erreur',
-        'Une erreur est survenue lors de la recherche. Veuillez réessayer.'
+        'Une erreur est survenue. Veuillez réessayer.'
       );
     } finally {
       setIsLoading(false);
@@ -82,38 +69,75 @@ const ClientInputScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <View style={styles.topSection}>
-          <View style={styles.header}>
-            <Text style={styles.title}>STE</Text>
-          </View>
-
-          <Image
-            source={require('../../assets/magnifier.png')}
-            style={styles.searchImage}
-          />
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.logo}>STE</Text>
+          <Text style={styles.subtitle}>Société Tchadienne des Eaux</Text>
         </View>
 
-        <View style={styles.bottomSection}>
+        {/* Welcome Section */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeTitle}>Bienvenue</Text>
+          <Text style={styles.welcomeText}>Choisissez votre espace</Text>
+        </View>
+
+        {/* Agent Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.iconText}>👤</Text>
+            </View>
+            <View style={styles.sectionInfo}>
+              <Text style={styles.sectionTitle}>Espace Agent</Text>
+              <Text style={styles.sectionDescription}>Accédez à votre tableau de bord</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleAgentLogin}>
+            <Text style={styles.primaryButtonText}>Se connecter</Text>
+            <Text style={styles.buttonArrow}>→</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>ou</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Customer Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
+              <Text style={styles.iconText}>💧</Text>
+            </View>
+            <View style={styles.sectionInfo}>
+              <Text style={styles.sectionTitle}>Espace Client</Text>
+              <Text style={styles.sectionDescription}>Consultez vos factures</Text>
+            </View>
+          </View>
           <TextInput
             style={styles.input}
             value={searchId}
             onChangeText={setSearchId}
-            placeholder="Entrez votre ID (ex: STE001234 ou STEA001234)"
+            placeholder="Numéro de compteur (ex: STE001234)"
             placeholderTextColor="#9CA3AF"
-            autoCapitalize="characters"
+            autoCapitalize="none"
             autoCorrect={false}
             editable={!isLoading}
           />
-
           <TouchableOpacity
-            style={[styles.searchButton, isLoading && styles.searchButtonDisabled]}
-            onPress={handleSearch}
+            style={[styles.secondaryButton, isLoading && styles.buttonDisabled]}
+            onPress={handleCustomerSearch}
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color="#2563EB" size="small" />
             ) : (
-              <Text style={styles.searchButtonText}>Rechercher</Text>
+              <>
+                <Text style={styles.secondaryButtonText}>Consulter</Text>
+                <Text style={[styles.buttonArrow, { color: '#2563EB' }]}>→</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -129,75 +153,139 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 40,
-    justifyContent: 'center',
-  },
-  topSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  bottomSection: {
-    paddingBottom: 40,
+    paddingHorizontal: 24,
+    paddingTop: 60,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 48,
   },
-  title: {
-    fontSize: 72,
-    fontWeight: '800',
-    fontFamily: 'Inter_800ExtraBold',
-    color: '#1E40AF',
-    marginBottom: 12,
-    textAlign: 'center',
-    letterSpacing: -0.5,
-    width: '100%',
+  logo: {
+    fontSize: 56,
+    fontWeight: 'bold',
+    color: '#2563EB',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 17,
-    fontFamily: 'Inter_400Regular',
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 26,
-    paddingHorizontal: 10,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  searchImage: {
-    width: 120,
-    height: 120,
-    alignSelf: 'center',
+  welcomeSection: {
+    marginBottom: 40,
+  },
+  welcomeTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  section: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#EBF5FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  iconText: {
+    fontSize: 28,
+  },
+  sectionInfo: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  primaryButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  secondaryButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#2563EB',
+  },
+  secondaryButtonText: {
+    color: '#2563EB',
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  buttonArrow: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 32,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
   input: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 50,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    fontFamily: 'Inter_400Regular',
-    color: '#0F172A',
-    marginBottom: 20,
+    color: '#111827',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  searchButton: {
-    backgroundColor: '#1E40AF',
-    borderRadius: 50,
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 56,
-  },
-  searchButtonDisabled: {
-    backgroundColor: '#94A3B8',
-  },
-  searchButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 0.3,
-  },
-
 });
 
 export default ClientInputScreen;
