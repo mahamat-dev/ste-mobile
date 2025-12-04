@@ -11,10 +11,13 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getClientBillingInfo } from '../services/mockDataService';
+import { getClientProfile } from '../services/mockDataService';
+import { customerApi } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ClientInputScreen = () => {
   const [searchId, setSearchId] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -24,17 +27,42 @@ const ClientInputScreen = () => {
 
   const handleCustomerSearch = async () => {
     if (!searchId.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre numéro de compteur.');
+      Alert.alert('Erreur', 'Veuillez entrer votre code client.');
       return;
     }
 
     setIsLoading(true);
     const trimmedId = searchId.trim();
+    const trimmedPhone = phoneNumber.trim();
 
     try {
-      const billingInfo = await getClientBillingInfo(trimmedId);
+      let customerData = null;
+
+      // Try real API first
+      try {
+        const response = await customerApi.searchByCode(trimmedId, trimmedPhone || undefined);
+        if (response.success && response.data) {
+          customerData = response.data;
+        }
+      } catch (apiError) {
+        console.log('API search failed, falling back to mock data', apiError);
+        // Fallback to mock data
+        const profile = await getClientProfile(trimmedId);
+        if (profile) {
+           // Check phone number match if provided in mock
+           if (trimmedPhone && profile.phoneNumber && !profile.phoneNumber.includes(trimmedPhone)) {
+               // Phone mismatch in mock
+               customerData = null;
+           } else {
+               customerData = profile;
+           }
+        }
+      }
       
-      if (billingInfo) {
+      if (customerData) {
+        // Store customer data for session
+        await AsyncStorage.setItem('customer_data', JSON.stringify(customerData));
+        
         router.push({
           pathname: '/client-router',
           params: {
@@ -43,12 +71,12 @@ const ClientInputScreen = () => {
         });
       } else {
         Alert.alert(
-          'Compteur non trouvé',
-          `Le numéro "${trimmedId}" n'existe pas. Veuillez vérifier et réessayer.`,
+          'Client non trouvé',
+          `Le client avec le code "${trimmedId}" ${trimmedPhone ? 'et ce numéro de téléphone ' : ''}n'a pas été trouvé. Veuillez vérifier et réessayer.`,
           [
             {
               text: 'Réessayer',
-              onPress: () => setSearchId('')
+              onPress: () => {}
             }
           ]
         );
@@ -120,10 +148,19 @@ const ClientInputScreen = () => {
             style={styles.input}
             value={searchId}
             onChangeText={setSearchId}
-            placeholder="Numéro de compteur (ex: STE001234)"
+            placeholder="Code Client (ex: CUST-001)"
             placeholderTextColor="#9CA3AF"
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!isLoading}
+          />
+          <TextInput
+            style={styles.input}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholder="Numéro de téléphone (Optionnel)"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="phone-pad"
             editable={!isLoading}
           />
           <TouchableOpacity

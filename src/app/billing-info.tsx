@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BillingInfo, formatCurrency, formatConsumption, getPaymentStatusColor, getPaymentStatusText, getClientProfile } from '../services/mockDataService';
 
 const BillingInfoScreen = () => {
@@ -16,7 +17,7 @@ const BillingInfoScreen = () => {
   const { clientData } = useLocalSearchParams();
   
   // Parse the billing info from params
-  const billingInfo: BillingInfo = JSON.parse(clientData as string);
+  const billingInfo: BillingInfo = clientData ? JSON.parse(clientData as string) : null;
 
   const [clientName, setClientName] = useState<string | null>(null);
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -24,12 +25,29 @@ const BillingInfoScreen = () => {
 
   useEffect(() => {
     let mounted = true;
+    
+    if (!billingInfo) {
+        router.back();
+        return;
+    }
+
     const loadProfile = async () => {
       try {
+        // Try to get name from stored session first
+        const stored = await AsyncStorage.getItem('customer_data');
+        if (stored) {
+            const data = JSON.parse(stored);
+            // Verify it matches the current billing info
+            if (data.clientId === billingInfo.clientId && mounted) {
+                setClientName(data.name);
+                return;
+            }
+        }
+
         const profile = await getClientProfile(billingInfo.clientId);
         if (mounted) setClientName(profile?.name ?? null);
       } catch (_) {
-        // ignore errors, fallback to clientId
+        // ignore errors
       }
     };
     loadProfile();
@@ -49,7 +67,9 @@ const BillingInfoScreen = () => {
       mounted = false;
       animatedValue.removeListener(listener);
     };
-  }, [billingInfo.clientId, billingInfo.consommationTotal]);
+  }, [billingInfo?.clientId, billingInfo?.consommationTotal]);
+
+  if (!billingInfo) return null;
 
   const handleBackPress = () => {
     router.back();

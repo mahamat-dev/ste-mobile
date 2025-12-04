@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ComplaintType = 'billing' | 'service' | 'quality' | 'other';
 
@@ -24,12 +25,32 @@ interface ComplaintOption {
 const ComplaintFormScreen = () => {
   const router = useRouter();
   const { clientId } = useLocalSearchParams();
+  const [storedClientId, setStoredClientId] = useState<string | null>(null);
   
   const [selectedType, setSelectedType] = useState<ComplaintType | null>(null);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadCustomerData = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem('customer_data');
+        if (storedData) {
+          const customer = JSON.parse(storedData);
+          if (customer.clientId) setStoredClientId(customer.clientId);
+          if (customer.phoneNumber) setContactPhone(customer.phoneNumber);
+          // Map other fields if necessary
+        }
+      } catch (error) {
+        console.log('Error loading customer data', error);
+      }
+    };
+    loadCustomerData();
+  }, []);
+
+  const displayClientId = storedClientId || (clientId as string);
 
   const complaintTypes: ComplaintOption[] = [
     { id: 'billing', title: 'Problème de Facturation', icon: '💳' },
@@ -62,7 +83,14 @@ const ComplaintFormScreen = () => {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call
+      // Simulate API call with real data context
+      console.log('Submitting complaint for:', displayClientId, {
+        type: selectedType,
+        subject,
+        description,
+        contactPhone
+      });
+      
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       Alert.alert(
@@ -109,7 +137,7 @@ const ComplaintFormScreen = () => {
         >
           <View style={styles.spacer} />
           <View style={styles.header}>
-            <Text style={styles.subtitle}>Client ID: {clientId}</Text>
+            <Text style={styles.subtitle}>Client ID: {displayClientId}</Text>
             <Text style={styles.description}>
               Décrivez votre problème et nous vous contacterons rapidement
             </Text>

@@ -10,10 +10,11 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { height: screenHeight } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getClientBillingInfo, getClientProfile, Client } from '../services/mockDataService';
+import { getClientBillingInfo, Client } from '../services/mockDataService';
 
 const ClientRouterScreen = () => {
   const router = useRouter();
@@ -111,19 +112,29 @@ const ClientRouterScreen = () => {
   };
 
   useEffect(() => {
-    const fetchClientProfile = async () => {
-      if (clientId) {
-        const profile = await getClientProfile(clientId as string);
-        setClientProfile(profile);
+    const loadClientData = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem('customer_data');
+        if (storedData) {
+          const profile = JSON.parse(storedData);
+          setClientProfile(profile);
+        } else {
+           // Fallback to params if storage empty (shouldn't happen if flow is correct)
+           // Or fetch using clientId param if available
+        }
+      } catch (error) {
+        console.error('Error loading client data:', error);
       }
     };
-    fetchClientProfile();
+    
+    loadClientData();
     animateIn();
   }, [clientId]);
 
   const handleCheckPaymentStatus = async () => {
     try {
-      const billingInfo = await getClientBillingInfo(clientId as string);
+      const idToUse = clientProfile?.clientId || (clientId as string);
+      const billingInfo = await getClientBillingInfo(idToUse);
       if (billingInfo) {
         router.push({
           pathname: '/billing-info',
@@ -141,7 +152,7 @@ const ClientRouterScreen = () => {
     router.push({
       pathname: '/complaint-form',
       params: {
-        clientId: clientId as string
+        clientId: clientProfile?.clientId || (clientId as string)
       }
     });
   };

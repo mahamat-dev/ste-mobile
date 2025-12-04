@@ -362,4 +362,45 @@ export const meterApi = {
   },
 };
 
+// Customer API endpoints
+export const customerApi = {
+  searchByCode: async (code: string, phone?: string) => {
+    // Use the connection-request endpoint as it supports search by name/phone/etc.
+    // Note: This might require backend adjustment to be public or allow code search explicitly.
+    // We append ?all=true to search broadly or use the search param.
+    
+    let endpoint = `/connection-request?all=true`;
+    if (phone) {
+        // If phone is provided, we can try to filter by it if the API supports it
+        // But connection-request search uses `search` param for name/phone
+        endpoint += `&search=${encodeURIComponent(phone)}`;
+    }
+    
+    const response = await apiRequest(endpoint, {
+      method: 'GET',
+    });
+
+    if (response.success && response.data && Array.isArray(response.data.data)) {
+        // Filter client-side for the exact customer code match
+        const match = response.data.data.find((r: any) => 
+            r?.customer?.customerCode === code && 
+            (!phone || r?.customer?.phone === phone) // If phone provided, it must match
+        );
+        
+        // If we found a match, return it formatted
+        if (match) {
+            return {
+                success: true,
+                data: match.customer
+            };
+        }
+    }
+
+    // If not found in connection-requests, try fetching by customer ID if we can infer it? 
+    // No, we can't.
+    
+    throw new Error('Client non trouvé');
+  }
+};
+
 export default apiRequest;
