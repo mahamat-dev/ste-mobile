@@ -7,16 +7,22 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
+  Dimensions,
+  StatusBar,
+  I18nManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
-import { TextInput } from 'react-native';
 import { meterApi } from '../services/api';
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AgentDashboardScreen = () => {
   const router = useRouter();
   const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t, i18n } = useTranslation();
   
   const [isLoading, setIsLoading] = useState(false);
   const [readingQuery, setReadingQuery] = useState('');
@@ -31,10 +37,8 @@ const AgentDashboardScreen = () => {
   });
 
   useEffect(() => {
-    // Wait for auth to finish loading
     if (authLoading) return;
-    
-    // Redirect to login if not authenticated
+
     if (!isAuthenticated) {
       router.replace('/agent-login');
       return;
@@ -45,10 +49,9 @@ const AgentDashboardScreen = () => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Simulate API call to load dashboard statistics
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock data for demonstration
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       setStats({
         totalClients: 156,
         pendingComplaints: 8,
@@ -56,7 +59,7 @@ const AgentDashboardScreen = () => {
         todayTasks: 12,
       });
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les données du tableau de bord.');
+      console.error('Error loading dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -64,12 +67,12 @@ const AgentDashboardScreen = () => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter?',
+      t('common.logout'),
+      t('common.confirmLogout'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         { 
-          text: 'Déconnexion', 
+          text: t('common.logout'), 
           style: 'destructive',
           onPress: async () => {
             try {
@@ -85,36 +88,29 @@ const AgentDashboardScreen = () => {
     );
   };
 
-  const handleClientSearch = () => {
-    router.push('/client-input');
-  };
+  const handleLanguageChange = async (lang: string) => {
+    await AsyncStorage.setItem('user-language', lang);
+    i18n.changeLanguage(lang);
 
-  const handleComplaints = () => {
-    router.push('/complaint-form');
+    const isRTL = lang === 'ar';
+    if (isRTL !== I18nManager.isRTL) {
+      I18nManager.allowRTL(isRTL);
+      I18nManager.forceRTL(isRTL);
+      // In a real production app, you'd want to reload here using Updates.reloadAsync() 
+      // or native modules. For this demo, we'll let the user know or rely on re-render.
+      // Since I18nManager requires a restart for layout direction changes in many cases:
+      Alert.alert(t('common.warning'), t('common.restart_msg'));
+    }
   };
 
   const handleMeterReading = () => {
     router.push('/meter-reading');
   };
 
-  const handleBillingManagement = () => {
-    Alert.alert(
-      'Gestion de Facturation',
-      'Fonctionnalité en cours de développement.\nVous pourrez bientôt gérer la facturation des clients.'
-    );
-  };
-
-  const handleReports = () => {
-    Alert.alert(
-      'Rapports',
-      'Fonctionnalité en cours de développement.\nVous pourrez bientôt générer des rapports détaillés.'
-    );
-  };
-
   const handleViewReadings = async () => {
     const query = readingQuery.trim();
     if (!query) {
-      Alert.alert('Erreur', 'Veuillez entrer un numéro de compteur.');
+      Alert.alert(t('common.warning'), t('dashboard.enterMeterNumber'));
       return;
     }
 
@@ -123,167 +119,203 @@ const AgentDashboardScreen = () => {
     try {
       const search = await meterApi.getByMeterNumber(query);
       if (!search.success || !search.data?.meter?.meterId) {
-        throw new Error('Compteur introuvable');
+        throw new Error(t('dashboard.meterNotFound'));
       }
       const meterId = search.data.meter.meterId;
       const list = await meterApi.getReadings(meterId);
       setReadings(list.data || []);
       setSelectedMeterId(meterId);
     } catch (error: any) {
-      Alert.alert('Erreur', error?.message || "Impossible d'afficher les relevés.");
+      Alert.alert(t('common.error'), error?.message || t('dashboard.fetchError'));
     } finally {
       setIsLoadingReadings(false);
     }
   };
 
-  // Show loading while auth is initializing
   if (authLoading || isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0F172A" />
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+      </View>
     );
   }
 
-  const roleLabel = user?.role?.name || user?.userType || user?.department;
-  const displayName = (user?.name || '').trim();
-  const shouldHideName = displayName && (
-    (roleLabel && displayName.toLowerCase() === String(roleLabel).toLowerCase()) ||
-    displayName.toLowerCase() === 'agent'
-  );
+  const displayName = user?.name || 'Agent User';
+  const initials = displayName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
+  const currentLang = i18n.language;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.profileSection}>
-              <View style={styles.avatarContainer}>
-                <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'A'}</Text>
-              </View>
-              <View style={styles.userInfo}>
-                <View style={styles.nameRow}>
-                  {!shouldHideName && displayName ? (
-                    <Text style={styles.userName}>{displayName}</Text>
-                  ) : null}
-                </View>
-                {roleLabel ? (
-                  <View style={styles.roleChip}>
-                    <Text style={styles.roleText}>{roleLabel}</Text>
-                  </View>
-                ) : null}
-                <Text style={styles.userEmail}>{user?.email || ''}</Text>
-              </View>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutIcon}>⎋</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        {/* Statistics */}
-        <View style={styles.statsContainer}>
-          <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCardFull, styles.statCardSuccess]}>
-              <View style={styles.statIconContainer}>
-                <Text style={styles.statIcon}>✓</Text>
-              </View>
-              <Text style={styles.statNumber}>{stats.todayTasks}</Text>
-              <Text style={styles.statLabel}>Tâches du jour</Text>
+            <View>
+              <Text style={styles.greeting}>{t('dashboard.greeting')}</Text>
+              <Text style={styles.name}>{displayName}</Text>
+              <Text style={styles.roleText}>{user?.role?.name || t('dashboard.role')}</Text>
             </View>
           </View>
-        </View>
-
-        {/* Action principale */}
-        <View style={styles.actionsContainer}>
-          <Text style={styles.sectionTitle}>Action Principale</Text>
-          <View style={styles.actionsGridSingle}>
-            <TouchableOpacity style={styles.actionCardHero} onPress={handleMeterReading}>
-              <View style={styles.actionCardHeader}>
-                <View style={[styles.actionIconHero, { backgroundColor: '#DCFCE7' }]}>
-                  <Text style={styles.actionIconTextHero}>📏</Text>
-                </View>
-              </View>
-              <Text style={styles.actionTitleHero}>Relevé de Compteur</Text>
-              <Text style={styles.actionDescriptionHero}>Commencer un nouveau relevé</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Historique des Relevés */}
-        <Text style={styles.sectionTitle}>Historique des Relevés</Text>
-        <View style={styles.readingsCard}>
-          <Text style={styles.readingsLabel}>Numéro de Compteur</Text>
-          <TextInput
-            style={styles.readingsInput}
-            value={readingQuery}
-            onChangeText={setReadingQuery}
-            placeholder="Ex: STE001234"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="none"
-          />
-          <TouchableOpacity 
-            style={[styles.readingsButton, isLoadingReadings && styles.buttonDisabled]} 
-            onPress={handleViewReadings}
-            disabled={isLoadingReadings}
-          >
-            {isLoadingReadings ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.readingsButtonText}>Voir relevés</Text>
-            )}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutIcon}>⏻</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Language Switcher */}
+        <View style={styles.langSwitcher}>
+          {['en', 'fr', 'ar'].map((lang) => (
+            <TouchableOpacity
+              key={lang}
+              style={[styles.langBtn, currentLang === lang && styles.langBtnActive]}
+              onPress={() => handleLanguageChange(lang)}
+            >
+              <Text style={[styles.langText, currentLang === lang && styles.langTextActive]}>
+                {lang.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Stats */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>📝</Text>
+            <Text style={styles.statValue}>{stats.todayTasks}</Text>
+            <Text style={styles.statLabel}>{t('dashboard.todayTasks')}</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>👥</Text>
+            <Text style={styles.statValue}>{stats.totalClients}</Text>
+            <Text style={styles.statLabel}>{t('dashboard.clients')}</Text>
+            </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>⚠️</Text>
+            <Text style={styles.statValue}>{stats.pendingComplaints}</Text>
+            <Text style={styles.statLabel}>{t('dashboard.complaints')}</Text>
+          </View>
+        </View>
+
+        {/* Main Action */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('dashboard.quickAction')}</Text>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={handleMeterReading}
+            activeOpacity={0.8}
+          >
+            <View style={styles.actionContent}>
+              <View style={styles.actionIconBox}>
+                <Text style={styles.actionIcon}>⚡️</Text>
+              </View>
+              <View style={styles.actionInfo}>
+                <Text style={styles.actionTitle}>{t('dashboard.newReading')}</Text>
+                <Text style={styles.actionSubtitle}>{t('dashboard.recordIndex')}</Text>
+              </View>
+              <Text style={styles.actionArrow}>{I18nManager.isRTL ? '←' : '→'}</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search & History */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('dashboard.searchHistory')}</Text>
+
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              value={readingQuery}
+              onChangeText={setReadingQuery}
+              placeholder={t('dashboard.meterPlaceholder')}
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+              textAlign={I18nManager.isRTL ? 'right' : 'left'}
+            />
+            <TouchableOpacity 
+              style={[styles.searchButton, isLoadingReadings && styles.searchButtonDisabled]}
+              onPress={handleViewReadings}
+              disabled={isLoadingReadings}
+            >
+              {isLoadingReadings ? (
+                <ActivityIndicator color="#0F172A" size="small" />
+              ) : (
+                <Text style={styles.searchButtonText}>{t('dashboard.view')}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
           {readings.length > 0 ? (
-            <View style={styles.readingsList}>
+            <View style={styles.resultsList}>
               {readings.map((item, idx) => {
                 const date = new Date(item.readingDate);
-                let photosCount = 0;
-                try {
-                  photosCount = item.photoUrls ? JSON.parse(item.photoUrls)?.length || 0 : 0;
-                } catch {}
                 return (
                   <TouchableOpacity
                     key={`${item.readingId}-${idx}`}
-                    style={styles.readingRow}
+                    style={styles.resultCard}
                     onPress={() => {
-                      if (!selectedMeterId) {
-                        Alert.alert('Erreur', 'Compteur introuvable pour ce relevé.');
-                        return;
+                      if (selectedMeterId) {
+                        router.push({
+                          pathname: '/reading-details',
+                          params: {
+                            meterId: String(selectedMeterId),
+                            readingId: String(item.readingId),
+                          },
+                        });
                       }
-                      router.push({
-                        pathname: '/reading-details',
-                        params: {
-                          meterId: String(selectedMeterId),
-                          readingId: String(item.readingId),
-                        },
-                      });
                     }}
                   >
-                    <View style={styles.readingRowLeft}>
-                      <Text style={styles.readingDate}>{date.toLocaleString()}</Text>
-                      <Text style={styles.readingValue}>Index: {Number(item.readingValue)}</Text>
-                      <Text style={styles.readingStatus}>Statut: {item.status}</Text>
-                    </View>
-                    <View style={styles.readingRowRight}>
-                      <View style={[styles.photoBadge, photosCount > 0 ? styles.photoBadgeActive : styles.photoBadgeMuted]}>
-                        <Text style={styles.photoBadgeText}>{photosCount} Photo(s)</Text>
+                    <View style={styles.resultCardContent}>
+                      <View style={styles.resultDateBox}>
+                        <Text style={styles.resultDay}>{date.getDate()}</Text>
+                        <Text style={styles.resultMonth}>
+                          {date.toLocaleDateString(currentLang, { month: 'short' }).toUpperCase()}
+                        </Text>
                       </View>
+
+                      <View style={styles.resultInfo}>
+                        <Text style={styles.resultValue}>{item.readingValue} <Text style={styles.unit}>{t('dashboard.unit')}</Text></Text>
+                        <View style={[styles.statusBadge, item.status === 'COMPLETED' ? styles.statusSuccess : styles.statusPending]}>
+                          <Text style={[styles.statusText, item.status === 'COMPLETED' ? styles.textSuccess : styles.textPending]}>
+                            {item.status === 'COMPLETED' ? t('dashboard.validated') : item.status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.chevron}>{I18nManager.isRTL ? '‹' : '›'}</Text>
                     </View>
                   </TouchableOpacity>
                 );
               })}
             </View>
           ) : (
-            <Text style={styles.readingsEmpty}>Aucun relevé trouvé pour ce compteur.</Text>
+              <View style={styles.emptyStateContainer}>
+                <Text style={styles.emptyStateIcon}>📊</Text>
+                <Text style={styles.emptyStateTitle}>{t('dashboard.readingHistory')}</Text>
+                <Text style={styles.emptyStateText}>
+                  {t('dashboard.searchInstruction')}
+                </Text>
+              </View>
           )}
         </View>
-
-        <View style={styles.spacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -298,365 +330,324 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
   loadingText: {
     marginTop: 16,
+    color: '#64748B',
     fontSize: 16,
-    color: '#6B7280',
+    fontWeight: '500',
   },
   header: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 16,
+    paddingHorizontal: 24,
     paddingBottom: 16,
+    paddingTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
-  headerTop: {
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 0,
-    gap: 16,
-  },
-  profileSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 10,
-  },
-  avatarContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 0,
-    position: 'relative',
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  avatarBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#111827',
-  },
-  avatarBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.4,
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   userInfo: {
-    flex: 1,
-  },
-  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    gap: 12,
   },
-  userName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginRight: 6,
-  },
-  roleChip: {
-    backgroundColor: '#EBF5FF',
-    padding: 6,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    flexGrow: 0,
-  },
-  roleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#2563EB',
-    textTransform: 'uppercase',
-
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  logoutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  avatarText: {
+    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  greeting: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  name: {
+    fontSize: 16,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  roleText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  logoutButton: {
+    padding: 8,
   },
   logoutIcon: {
-    fontSize: 18,
-    color: '#DC2626',
+    fontSize: 20,
+    color: '#EF4444',
+  },
+  langSwitcher: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  langBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  langBtnActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  langText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  langTextActive: {
+    color: '#FFFFFF',
   },
   content: {
     flex: 1,
-    padding: 16,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E40AF',
-    marginBottom: 16,
-  },
-  statsContainer: {
-    marginBottom: 32,
+  scrollContent: {
+    padding: 24,
   },
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  actionsGridSingle: {
-    flexDirection: 'column',
-    gap: 16,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  statCardFull: {
-    width: '100%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  statCardPrimary: {
-    backgroundColor: '#EBF5FF',
-    borderColor: '#DBEAFE',
-  },
-  statCardWarning: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-  },
-  statCardDanger: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FECACA',
-  },
-  statCardSuccess: {
-    backgroundColor: '#D1FAE5',
-    borderColor: '#A7F3D0',
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1E40AF',
-    marginBottom: 8,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  statIconContainer: {
-    marginBottom: 8,
-  },
-  statIcon: {
-    fontSize: 28,
-  },
-  actionsContainer: {
+    gap: 12,
     marginBottom: 32,
   },
-  actionsGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionCardLarge: {
+  statCard: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
+    alignItems: 'flex-start',
   },
-  actionCardHero: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+  statIcon: {
+    fontSize: 20,
+    marginBottom: 12,
   },
-  actionCardHeader: {
-    marginBottom: 16,
-  },
-  actionIconLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionIconHero: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionIconTextLarge: {
-    fontSize: 32,
-  },
-  actionIconTextHero: {
-    fontSize: 36,
-  },
-  actionTitleLarge: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  actionTitleHero: {
+  statValue: {
     fontSize: 20,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  actionDescriptionLarge: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  actionDescriptionHero: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  spacer: {
-    height: 32,
-  },
-  readingsCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 24,
-  },
-  readingsLabel: {
-    fontSize: 14,
-    color: '#374151',
-    marginBottom: 8,
-  },
-  readingsInput: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-    color: '#111827',
-  },
-  readingsButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  readingsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  readingsList: {
-    marginTop: 8,
-    gap: 8,
-  },
-  readingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 12,
-  },
-  readingRowLeft: {
-    flex: 1,
-  },
-  readingRowRight: {
-    marginLeft: 12,
-  },
-  readingDate: {
-    fontSize: 13,
-    color: '#6B7280',
     marginBottom: 4,
   },
-  readingValue: {
-    fontSize: 15,
-    color: '#111827',
+  statLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 16,
+    textAlign: 'left', // Ensure alignment is correct in RTL if not auto
   },
-  readingStatus: {
+  actionCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  actionIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionIcon: {
+    fontSize: 24,
+  },
+  actionInfo: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+    textAlign: 'left',
+  },
+  actionSubtitle: {
     fontSize: 13,
-    color: '#374151',
-    marginTop: 4,
+    color: '#64748B',
+    textAlign: 'left',
   },
-  photoBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
+  actionArrow: {
+    fontSize: 20,
+    color: '#94A3B8',
   },
-  photoBadgeText: {
+  searchContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#0F172A',
+    height: 48,
+  },
+  searchButton: {
+    paddingHorizontal: 20,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#0F172A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchButtonDisabled: {
+    backgroundColor: '#94A3B8',
+  },
+  searchButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  resultsList: {
+    gap: 12,
+  },
+  resultCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  resultCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultDateBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16, // Will need flip in RTL? Flexbox handles row direction, so margins might need start/end logic if not auto.
+    // In React Native, 'marginRight' refers to physical right. In RTL, we want margin between elements.
+    // Using 'gap' in parent is better, but keeping support.
+    // To be safe for RTL, we can use marginEnd if available or just rely on gap.
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  resultDay: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  resultMonth: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  resultInfo: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  resultValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+    textAlign: 'left',
+  },
+  unit: {
     fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  statusSuccess: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#DCFCE7',
+  },
+  statusPending: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FFEDD5',
+  },
+  statusText: {
+    fontSize: 10,
     fontWeight: '700',
   },
-  photoBadgeActive: {
-    backgroundColor: '#D1FAE5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+  textSuccess: {
+    color: '#166534',
   },
-  photoBadgeMuted: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  textPending: {
+    color: '#C2410C',
   },
-  readingsEmpty: {
+  chevron: {
+    fontSize: 20,
+    color: '#94A3B8',
+  },
+  emptyStateContainer: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyStateIcon: {
+    fontSize: 32,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  emptyStateText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: '#64748B',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

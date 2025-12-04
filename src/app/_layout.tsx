@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import React from 'react';
+import '../i18n'; // Initialize i18n
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { AuthProvider } from '../contexts/AuthContext';
