@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   backArrowText: {
     fontSize: 24,
     lineHeight: 24,
-    color: '#1E40AF',
+    color: '#3B82F6',
     fontWeight: 'bold',
     includeFontPadding: false,
     textAlignVertical: 'center',
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
 
   
   clientChip: {
-    backgroundColor: '#1E40AF',
+    backgroundColor: '#3B82F6',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     fontFamily: 'Inter_700Bold',
-    color: '#1E40AF',
+    color: '#3B82F6',
     marginBottom: 4,
   },
   buttonDescription: {

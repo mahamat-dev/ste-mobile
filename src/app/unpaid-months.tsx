@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1E40AF',
+    color: '#3B82F6',
     textAlign: 'center',
     flex: 1,
   },
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   backArrowText: {
     fontSize: 24,
     lineHeight: 24,
-    color: '#1E40AF',
+    color: '#3B82F6',
     fontWeight: 'bold',
     includeFontPadding: false,
     textAlignVertical: 'center',

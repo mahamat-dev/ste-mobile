@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1E40AF',
+    color: '#3B82F6',
     textAlign: 'center',
     flex: 1,
   },
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   backArrowText: {
     fontSize: 24,
     lineHeight: 24,
-    color: '#1E40AF',
+    color: '#3B82F6',
     fontWeight: 'bold',
     includeFontPadding: false,
     textAlignVertical: 'center',
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   typeCardSelected: {
-    borderColor: '#1E40AF',
+    borderColor: '#3B82F6',
     backgroundColor: '#EFF6FF',
   },
   typeIcon: {
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   typeTitleSelected: {
-    color: '#1E40AF',
+    color: '#3B82F6',
     fontWeight: '600',
   },
   label: {
@@ -349,12 +349,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitButton: {
-    backgroundColor: '#1E40AF',
+    backgroundColor: '#3B82F6',
     borderRadius: 50,
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1E40AF',
+    shadowColor: '#3B82F6',
     shadowOffset: {
       width: 0,
       height: 4,

@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   loginButton: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#3B82F6', // Primary Blue
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   forgotPasswordText: {
-    color: '#0F172A',
+    color: '#3B82F6', // Primary Blue
     fontSize: 14,
     fontWeight: '500',
     textDecorationLine: 'underline',

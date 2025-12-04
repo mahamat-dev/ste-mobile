@@ -132,11 +132,11 @@ const ClientInputScreen = () => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#2563EB" size="small" />
+              <ActivityIndicator color="#3B82F6" size="small" />
             ) : (
               <>
                 <Text style={styles.secondaryButtonText}>Consulter</Text>
-                <Text style={[styles.buttonArrow, { color: '#2563EB' }]}>→</Text>
+                  <Text style={[styles.buttonArrow, { color: '#3B82F6' }]}>→</Text>
               </>
             )}
           </TouchableOpacity>
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 56,
     fontWeight: 'bold',
-    color: '#2563EB',
+    color: '#3B82F6',
     marginBottom: 8,
   },
   subtitle: {
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   primaryButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#3B82F6',
     borderRadius: 16,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -243,10 +243,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#2563EB',
+    borderColor: '#3B82F6',
   },
   secondaryButtonText: {
-    color: '#2563EB',
+    color: '#3B82F6',
     fontSize: 16,
     fontWeight: '600',
     marginRight: 8,

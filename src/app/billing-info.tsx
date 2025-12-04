@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   backArrowText: {
     fontSize: 24,
     lineHeight: 24,
-    color: '#1E40AF',
+    color: '#3B82F6',
     fontWeight: 'bold',
     includeFontPadding: false,
     textAlignVertical: 'center',
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2563EB',
+    color: '#3B82F6',
     marginBottom: 8,
   },
   clientId: {
@@ -388,12 +388,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButton: {
-    backgroundColor: '#1E40AF',
+    backgroundColor: '#3B82F6',
     flex: 1,
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
-    shadowColor: '#1E40AF',
+    shadowColor: '#3B82F6',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#1E40AF',
+    borderColor: '#3B82F6',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   actionButtonSecondaryText: {
-    color: '#1E40AF',
+    color: '#3B82F6',
     fontSize: 16,
     fontWeight: '600',
   },

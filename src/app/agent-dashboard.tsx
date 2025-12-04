@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AgentDashboardScreen = () => {
   const router = useRouter();
-  const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { t, i18n } = useTranslation();
   
   const [isLoading, setIsLoading] = useState(false);
@@ -65,43 +65,8 @@ const AgentDashboardScreen = () => {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      t('common.logout'),
-      t('common.confirmLogout'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { 
-          text: t('common.logout'), 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace('/');
-            } catch (error) {
-              console.error('Logout error:', error);
-              router.replace('/');
-            }
-          }
-        }
-      ]
-    );
-  };
 
-  const handleLanguageChange = async (lang: string) => {
-    await AsyncStorage.setItem('user-language', lang);
-    i18n.changeLanguage(lang);
 
-    const isRTL = lang === 'ar';
-    if (isRTL !== I18nManager.isRTL) {
-      I18nManager.allowRTL(isRTL);
-      I18nManager.forceRTL(isRTL);
-      // In a real production app, you'd want to reload here using Updates.reloadAsync() 
-      // or native modules. For this demo, we'll let the user know or rely on re-render.
-      // Since I18nManager requires a restart for layout direction changes in many cases:
-      Alert.alert(t('common.warning'), t('common.restart_msg'));
-    }
-  };
 
   const handleMeterReading = () => {
     router.push('/meter-reading');
@@ -158,7 +123,11 @@ const AgentDashboardScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <View style={styles.userInfo}>
+          <TouchableOpacity
+            style={styles.userInfo}
+            onPress={() => router.push('/profile')}
+            activeOpacity={0.7}
+          >
             <View style={styles.avatarContainer}>
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
@@ -167,25 +136,7 @@ const AgentDashboardScreen = () => {
               <Text style={styles.name}>{displayName}</Text>
               <Text style={styles.roleText}>{user?.role?.name || t('dashboard.role')}</Text>
             </View>
-          </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutIcon}>⏻</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Language Switcher */}
-        <View style={styles.langSwitcher}>
-          {['en', 'fr', 'ar'].map((lang) => (
-            <TouchableOpacity
-              key={lang}
-              style={[styles.langBtn, currentLang === lang && styles.langBtnActive]}
-              onPress={() => handleLanguageChange(lang)}
-            >
-              <Text style={[styles.langText, currentLang === lang && styles.langTextActive]}>
-                {lang.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </View>
       </View>
 
@@ -256,7 +207,7 @@ const AgentDashboardScreen = () => {
               disabled={isLoadingReadings}
             >
               {isLoadingReadings ? (
-                <ActivityIndicator color="#0F172A" size="small" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.searchButtonText}>{t('dashboard.view')}</Text>
               )}
@@ -349,8 +300,8 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
+    marginBottom: 0,
   },
   userInfo: {
     flexDirection: 'row',
@@ -361,14 +312,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#3B82F6', // Primary Blue
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   avatarText: {
-    color: '#0F172A',
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
   },
@@ -388,38 +337,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     marginTop: 2,
-  },
-  logoutButton: {
-    padding: 8,
-  },
-  logoutIcon: {
-    fontSize: 20,
-    color: '#EF4444',
-  },
-  langSwitcher: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  langBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  langBtnActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
-  },
-  langText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  langTextActive: {
-    color: '#FFFFFF',
   },
   content: {
     flex: 1,
@@ -464,7 +381,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 16,
-    textAlign: 'left', // Ensure alignment is correct in RTL if not auto
+    textAlign: 'left',
   },
   actionCard: {
     backgroundColor: '#F8FAFC',
@@ -530,7 +447,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     height: 48,
     borderRadius: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#3B82F6', // Primary Blue
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -563,10 +480,7 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16, // Will need flip in RTL? Flexbox handles row direction, so margins might need start/end logic if not auto.
-    // In React Native, 'marginRight' refers to physical right. In RTL, we want margin between elements.
-    // Using 'gap' in parent is better, but keeping support.
-    // To be safe for RTL, we can use marginEnd if available or just rely on gap.
+    marginRight: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -650,5 +564,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
 
 export default AgentDashboardScreen;

@@ -321,7 +321,7 @@ const MeterReadingScreen = () => {
     <SafeAreaView style={styles.container}>
       {isSubmitting && (
         <View style={styles.loaderOverlay}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color="#3B82F6" />
           <Text style={styles.loaderText}>Envoi en cours…</Text>
         </View>
       )}
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
   },
   backArrow: {
     fontSize: 20,
-    color: '#2563EB',
+    color: '#3B82F6',
     fontWeight: '600',
   },
   headerTitle: {
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   searchButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#3B82F6',
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
   },
   viewPhotoButton: {
     flex: 1,
-    backgroundColor: '#1E40AF',
+    backgroundColor: '#3B82F6',
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -1010,8 +1010,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#1E40AF',
-    borderColor: '#1E40AF',
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
   },
   checkmark: {
     color: '#FFFFFF',
@@ -1043,7 +1043,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     flex: 1,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#3B82F6',
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
