@@ -176,7 +176,8 @@ export const authApi = {
 export const meterApi = {
   getByMeterNumber: async (meterNumber: string) => {
     // Backend does not expose /meters; reuse connection-request with relations
-    const resp = await apiRequest(`/connection-request?all=true`, {
+    // Use pagination instead of all=true to get relations included
+    const resp = await apiRequest(`/connection-request?page=1&limit=100`, {
       method: "GET",
     });
     if (!resp?.success || !resp?.data?.data) {
@@ -198,13 +199,83 @@ export const meterApi = {
     };
   },
 
+  getByCustomerCode: async (customerCode: string) => {
+    try {
+      // First, find the customer in connection-request to get customerId
+      const listResp = await apiRequest(`/connection-request?page=1&limit=100`, { method: "GET" });
+      if (!listResp?.success || !listResp?.data?.data) {
+        return { success: false, message: "Customer not found" };
+      }
+      const rows = listResp.data.data as any[];
+      const match = rows.find((r) => r?.customer?.customerCode === customerCode);
+      if (!match || !match.customer) {
+        return { success: false, message: "Customer not found" };
+      }
+
+      const customerId = match.customer.customerId;
+      const customer = match.customer;
+
+      // Use meter-readings endpoint filtered by customerId to get meter data
+      // This returns meter readings with meter and customer info
+      try {
+        const resp = await apiRequest(`/meter-readings?customerId=${customerId}&page=1&limit=50`, { method: "GET" });
+
+        if (resp?.success && resp?.data?.data && resp.data.data.length > 0) {
+          // Get the first reading which contains meter info
+          const firstReading = resp.data.data[0];
+          const meter = firstReading.meter;
+
+          // Find the latest APPROVED reading by date - only use validated index
+          const allReadings = resp.data.data;
+          const approvedReadings = allReadings.filter(
+            (reading: any) => String(reading?.status || '').toLowerCase() === 'approved'
+          );
+          
+          const latestApprovedReading = approvedReadings.length > 0
+            ? [...approvedReadings].sort(
+                (a: any, b: any) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime()
+              )[0]
+            : null;
+
+          const lastReading = latestApprovedReading
+            ? { readingValue: Number(latestApprovedReading.currentIndex) || 0 }
+            : null;
+
+          return {
+            success: true,
+            data: {
+              meter,
+              customer: meter?.customer || customer,
+              lastReading,
+            },
+          };
+        }
+      } catch (meterErr: any) {
+        // If meter-readings endpoint fails, fall back to connection-request data
+        console.warn("meter-readings endpoint failed, using connection-request data", meterErr?.message);
+      }
+
+      // Fallback: return connection-request data (meter might be null)
+      return {
+        success: true,
+        data: {
+          meter: match.meter,
+          customer: customer,
+          lastReading: null,
+        },
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || "Customer not found" };
+    }
+  },
+
   getByCustomerId: async (customerId: number | string) => {
     const idNum = typeof customerId === 'string' ? Number(customerId) : customerId;
     try {
       const resp = await apiRequest(`/meter-readings/customer/${idNum}`, { method: 'GET' });
       if (!resp?.success || !resp?.data) {
-        // Fallback to connection-request listing when the endpoint is unavailable or returns no data
-        const list = await apiRequest(`/connection-request?all=true`, { method: 'GET' });
+        // Fallback to connection-request listing (use pagination to get relations)
+        const list = await apiRequest(`/connection-request?page=1&limit=100`, { method: 'GET' });
         const rows = list?.data?.data || [];
         const match = rows.find((r: any) => Number(r?.customer?.customerId) === Number(idNum));
         if (!match) {
@@ -224,23 +295,29 @@ export const meterApi = {
       const meters = Array.isArray(customerPayload?.meters) ? customerPayload.meters : [];
       const meter = meters.length > 0 ? meters[0] : null;
 
-      // Derive lastReading from the meter's meterReading list (latest by readingDate)
+      // Derive lastReading from the meter's meterReading list (latest APPROVED reading by readingDate)
       let lastReading: { readingValue?: number } | null = null;
       if (meter && Array.isArray(meter.meterReading) && meter.meterReading.length > 0) {
-        const latest = [...meter.meterReading].sort(
-          (a: any, b: any) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime()
-        )[0];
-        // Map backend currentIndex to expected readingValue
-        const readingValueNum = typeof latest.currentIndex === 'number'
-          ? latest.currentIndex
-          : Number(latest.currentIndex);
-        lastReading = { readingValue: readingValueNum };
+        // Filter only approved readings
+        const approvedReadings = meter.meterReading.filter(
+          (reading: any) => String(reading?.status || '').toLowerCase() === 'approved'
+        );
+        
+        if (approvedReadings.length > 0) {
+          const latest = [...approvedReadings].sort(
+            (a: any, b: any) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime()
+          )[0];
+          // Map backend currentIndex to expected readingValue
+          const readingValueNum =
+            typeof latest.currentIndex === 'number' ? latest.currentIndex : Number(latest.currentIndex);
+          lastReading = { readingValue: readingValueNum };
+        }
       }
 
       // If no meter is linked to the customer, attempt fallback list lookup
       if (!meter) {
         try {
-          const list = await apiRequest(`/connection-request?all=true`, { method: 'GET' });
+          const list = await apiRequest(`/connection-request?page=1&limit=100`, { method: 'GET' });
           const rows = list?.data?.data || [];
           const match = rows.find((r: any) => Number(r?.customer?.customerId) === Number(idNum));
           if (!match) {
@@ -270,7 +347,7 @@ export const meterApi = {
     } catch (err: any) {
       // Network or auth error: attempt fallback list
       try {
-        const list = await apiRequest(`/connection-request?all=true`, { method: 'GET' });
+        const list = await apiRequest(`/connection-request?page=1&limit=100`, { method: 'GET' });
         const rows = list?.data?.data || [];
         const match = rows.find((r: any) => Number(r?.customer?.customerId) === Number(idNum));
         if (!match) {
@@ -297,7 +374,8 @@ export const meterApi = {
   },
 
   getReadings: async (meterId: number) => {
-    return await apiRequest(`/meters/${meterId}/readings`, {
+    // Use the meter-readings endpoint with meterId filter
+    return await apiRequest(`/meter-readings?meterId=${meterId}&page=1&limit=50`, {
       method: 'GET',
     });
   },
@@ -313,34 +391,34 @@ export const meterApi = {
     latitude?: string;
   }) => {
     const form = new FormData();
+
     // Required fields for backend validation
     form.append('meterId', String(data.meterId));
 
-    // Reading date (ISO 8601). Use date-only to match examples.
+    // Reading date (ISO 8601)
     const today = new Date();
     const readingDate = today.toISOString().slice(0, 10);
     form.append('readingDate', readingDate);
 
-    // Compute indices and consumption per backend validation
-    const prev = typeof data.previousIndex === 'number' ? data.previousIndex : undefined;
-    let curr: number | undefined = typeof data.currentIndex === 'number' ? data.currentIndex : undefined;
-    let consumption: number = 0;
+    // Compute indices and consumption
+    const prev = typeof data.previousIndex === 'number' ? data.previousIndex : 0;
+    let curr: number;
+    let consumption: number;
 
     if (data.isInaccessible) {
       // No access: set currentIndex to previous and consumption to 0
-      curr = prev !== undefined ? prev : 0;
+      curr = prev;
       consumption = 0;
       form.append('accessReason', 'Door_Closed');
     } else {
-      curr = curr !== undefined ? curr : 0;
-      consumption = prev !== undefined ? Number(curr) - Number(prev) : Number(curr);
+      curr = typeof data.currentIndex === 'number' ? data.currentIndex : 0;
+      consumption = Math.max(0, curr - prev);
       form.append('accessReason', 'Accessed');
     }
 
+    // Backend requires these as decimal strings
     form.append('currentIndex', String(curr));
-    if (prev !== undefined) {
-      form.append('previousIndex', String(prev));
-    }
+    form.append('previousIndex', String(prev));
     form.append('consumption', String(consumption));
 
     // Optional geolocation and notes
@@ -348,13 +426,17 @@ export const meterApi = {
     if (data.latitude) form.append('latitude', data.latitude);
     if (data.notes) form.append('comments', data.notes);
 
-    // Single evidence photo per backend multer config
+    // Evidence photo - React Native requires specific format
     if (data.imageUri) {
-      const name = `evidence-${Date.now()}.jpg`;
+      const filename = `evidence-${Date.now()}.jpg`;
+      const fileExtension = data.imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+
+      // React Native FormData expects this specific format
       form.append('evidencePhotoUrl', {
         uri: data.imageUri,
-        name,
-        type: 'image/jpeg'
+        name: filename,
+        type: mimeType,
       } as any);
     }
 
@@ -365,42 +447,35 @@ export const meterApi = {
 // Customer API endpoints
 export const customerApi = {
   searchByCode: async (code: string, phone?: string) => {
-    // Use the connection-request endpoint as it supports search by name/phone/etc.
-    // Note: This might require backend adjustment to be public or allow code search explicitly.
-    // We append ?all=true to search broadly or use the search param.
-    
-    let endpoint = `/connection-request?all=true`;
+    // Use the connection-request endpoint with pagination to get relations
+    let endpoint = `/connection-request?page=1&limit=100`;
     if (phone) {
-        // If phone is provided, we can try to filter by it if the API supports it
-        // But connection-request search uses `search` param for name/phone
-        endpoint += `&search=${encodeURIComponent(phone)}`;
+      // If phone is provided, use search param
+      endpoint += `&search=${encodeURIComponent(phone)}`;
     }
-    
+
     const response = await apiRequest(endpoint, {
       method: 'GET',
     });
 
     if (response.success && response.data && Array.isArray(response.data.data)) {
-        // Filter client-side for the exact customer code match
-        const match = response.data.data.find((r: any) => 
-            r?.customer?.customerCode === code && 
-            (!phone || r?.customer?.phone === phone) // If phone provided, it must match
-        );
-        
-        // If we found a match, return it formatted
-        if (match) {
-            return {
-                success: true,
-                data: match.customer
-            };
-        }
+      // Filter client-side for the exact customer code match
+      const match = response.data.data.find(
+        (r: any) =>
+          r?.customer?.customerCode === code && (!phone || r?.customer?.phone === phone) // If phone provided, it must match
+      );
+
+      // If we found a match, return it formatted
+      if (match) {
+        return {
+          success: true,
+          data: match.customer,
+        };
+      }
     }
 
-    // If not found in connection-requests, try fetching by customer ID if we can infer it? 
-    // No, we can't.
-    
     throw new Error('Client non trouvé');
-  }
+  },
 };
 
 export default apiRequest;

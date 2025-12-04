@@ -75,14 +75,16 @@ const AgentDashboardScreen = () => {
   const handleViewReadings = async () => {
     const query = readingQuery.trim();
     if (!query) {
-      Alert.alert(t('common.warning'), t('dashboard.enterMeterNumber'));
+      Alert.alert(t('common.warning'), t('dashboard.enterCustomerCode'));
       return;
     }
 
     setIsLoadingReadings(true);
     setReadings([]);
     try {
-      const search = await meterApi.getByMeterNumber(query);
+      // Search by customerCode (e.g., CUST-001)
+      const search = await meterApi.getByCustomerCode(query);
+
       if (!search.success || !search.data?.meter?.meterId) {
         throw new Error(t('dashboard.meterNotFound'));
       }
@@ -196,9 +198,9 @@ const AgentDashboardScreen = () => {
               style={styles.searchInput}
               value={readingQuery}
               onChangeText={setReadingQuery}
-              placeholder={t('dashboard.meterPlaceholder')}
+              placeholder={t('dashboard.customerCodePlaceholder')}
               placeholderTextColor="#94A3B8"
-              autoCapitalize="none"
+              autoCapitalize="characters"
               textAlign={I18nManager.isRTL ? 'right' : 'left'}
             />
             <TouchableOpacity 

@@ -150,7 +150,7 @@ const ClientInputScreen = () => {
             onChangeText={setSearchId}
             placeholder="Code Client (ex: CUST-001)"
             placeholderTextColor="#9CA3AF"
-            autoCapitalize="none"
+            autoCapitalize="characters"
             autoCorrect={false}
             editable={!isLoading}
           />
