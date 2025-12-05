@@ -220,7 +220,7 @@ const MeterReadingScreen = () => {
               setStatusValidated(true);
               setLatestStatus('APPROVED');
             }
-            // No blocking conditions
+            // No blocking conditions - allow retake if rejected or no recent reading
             else {
               setIsBlocked(false);
               setBlockedReason(null);
@@ -232,7 +232,13 @@ const MeterReadingScreen = () => {
                 const ax = new Date(a?.readingDate || a?.createdAt || 0).getTime();
                 return bx - ax;
               })[0];
+              const latestStatus = String(latest?.status || '').toLowerCase();
               setLatestStatus(latest?.status || null);
+              
+              // Show helpful message if last reading was rejected
+              if (latestStatus === 'rejected') {
+                setBlockedReason('Dernier relevé rejeté - Vous pouvez soumettre un nouveau relevé');
+              }
             }
           }
         } catch (err) {
@@ -532,6 +538,10 @@ const MeterReadingScreen = () => {
                   <View style={styles.statusBadgeBlocked}>
                     <Text style={styles.statusTextBlocked}>{blockedReason}</Text>
                   </View>
+                ) : blockedReason ? (
+                  <View style={styles.statusBadgeWarning}>
+                    <Text style={styles.statusTextWarning}>{blockedReason}</Text>
+                  </View>
                 ) : (
                   <View style={styles.statusBadgeSuccess}>
                     <Text style={styles.statusTextSuccess}>Prêt pour relevé</Text>
@@ -728,6 +738,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
+    textAlign: 'center',
   },
   placeholder: {
     width: 40,
@@ -746,6 +757,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 16,
+    textAlign: 'left',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -855,6 +867,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  statusBadgeWarning: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+  },
+  statusTextWarning: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   statsGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -923,8 +947,9 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#0F172A',
     marginBottom: 8,
+    textAlign: 'left',
   },
   input: {
     backgroundColor: '#FFFFFF',
@@ -957,7 +982,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   photoButtonText: {
-    color: '#374151',
+    color: '#0F172A',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1008,7 +1033,8 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     fontSize: 14,
-    color: '#374151',
+    color: '#0F172A',
+    fontWeight: '500',
     flex: 1,
   },
   errorCard: {
@@ -1045,7 +1071,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resetButtonText: {
-    color: '#374151',
+    color: '#0F172A',
     fontSize: 14,
     fontWeight: '600',
   },

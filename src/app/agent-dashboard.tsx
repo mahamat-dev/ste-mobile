@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  Dimensions,
   StatusBar,
   I18nManager,
 } from 'react-native';
@@ -17,7 +16,6 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { meterApi } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AgentDashboardScreen = () => {
   const router = useRouter();
@@ -29,6 +27,9 @@ const AgentDashboardScreen = () => {
   const [isLoadingReadings, setIsLoadingReadings] = useState(false);
   const [readings, setReadings] = useState<any[]>([]);
   const [selectedMeterId, setSelectedMeterId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [customerName, setCustomerName] = useState<string>('');
   const [stats, setStats] = useState({
     totalClients: 0,
     pendingComplaints: 0,
@@ -72,7 +73,7 @@ const AgentDashboardScreen = () => {
     router.push('/meter-reading');
   };
 
-  const handleViewReadings = async () => {
+  const handleViewReadings = async (page: number = 1) => {
     const query = readingQuery.trim();
     if (!query) {
       Alert.alert(t('common.warning'), t('dashboard.enterCustomerCode'));
@@ -80,7 +81,10 @@ const AgentDashboardScreen = () => {
     }
 
     setIsLoadingReadings(true);
-    setReadings([]);
+    if (page === 1) {
+      setReadings([]);
+    }
+    
     try {
       // Search by customerCode (e.g., CUST-001)
       const search = await meterApi.getByCustomerCode(query);
@@ -88,14 +92,51 @@ const AgentDashboardScreen = () => {
       if (!search.success || !search.data?.meter?.meterId) {
         throw new Error(t('dashboard.meterNotFound'));
       }
+      
       const meterId = search.data.meter.meterId;
-      const list = await meterApi.getReadings(meterId);
-      setReadings(list.data || []);
+      const customer = search.data.customer;
+      const customerFullName = `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim();
+      setCustomerName(customerFullName);
+      
+      // Get readings for last 3 months with pagination
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const startDate = threeMonthsAgo.toISOString().split('T')[0];
+      
+      const list = await meterApi.getReadings(meterId, page, 10, startDate);
+      
+      // Extract readings from the response
+      const readingsData = Array.isArray(list?.data?.data) 
+        ? list.data.data 
+        : Array.isArray(list?.data) 
+        ? list.data 
+        : [];
+      
+
+      
+      setReadings(readingsData);
       setSelectedMeterId(meterId);
+      setCurrentPage(page);
+      
+      // Calculate total pages from response
+      const total = list?.data?.total || readingsData.length;
+      setTotalPages(Math.ceil(total / 10));
     } catch (error: any) {
       Alert.alert(t('common.error'), error?.message || t('dashboard.fetchError'));
     } finally {
       setIsLoadingReadings(false);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handleViewReadings(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      handleViewReadings(currentPage - 1);
     }
   };
 
@@ -205,7 +246,7 @@ const AgentDashboardScreen = () => {
             />
             <TouchableOpacity 
               style={[styles.searchButton, isLoadingReadings && styles.searchButtonDisabled]}
-              onPress={handleViewReadings}
+              onPress={() => handleViewReadings(1)}
               disabled={isLoadingReadings}
             >
               {isLoadingReadings ? (
@@ -217,48 +258,126 @@ const AgentDashboardScreen = () => {
           </View>
 
           {readings.length > 0 ? (
-            <View style={styles.resultsList}>
-              {readings.map((item, idx) => {
-                const date = new Date(item.readingDate);
-                return (
-                  <TouchableOpacity
-                    key={`${item.readingId}-${idx}`}
-                    style={styles.resultCard}
-                    onPress={() => {
-                      if (selectedMeterId) {
-                        router.push({
-                          pathname: '/reading-details',
-                          params: {
-                            meterId: String(selectedMeterId),
-                            readingId: String(item.readingId),
-                          },
-                        });
-                      }
-                    }}
-                  >
-                    <View style={styles.resultCardContent}>
-                      <View style={styles.resultDateBox}>
-                        <Text style={styles.resultDay}>{date.getDate()}</Text>
-                        <Text style={styles.resultMonth}>
-                          {date.toLocaleDateString(currentLang, { month: 'short' }).toUpperCase()}
-                        </Text>
-                      </View>
-
-                      <View style={styles.resultInfo}>
-                        <Text style={styles.resultValue}>{item.readingValue} <Text style={styles.unit}>{t('dashboard.unit')}</Text></Text>
-                        <View style={[styles.statusBadge, item.status === 'COMPLETED' ? styles.statusSuccess : styles.statusPending]}>
-                          <Text style={[styles.statusText, item.status === 'COMPLETED' ? styles.textSuccess : styles.textPending]}>
-                            {item.status === 'COMPLETED' ? t('dashboard.validated') : item.status}
+            <>
+              {customerName && (
+                <View style={styles.customerBanner}>
+                  <Text style={styles.customerBannerIcon}>👤</Text>
+                  <Text style={styles.customerBannerText}>{customerName}</Text>
+                </View>
+              )}
+              
+              <View style={styles.resultsList}>
+                {readings.map((item, idx) => {
+                  const date = new Date(item.readingDate || item.createdAt);
+                  const status = String(item.status || '').toLowerCase();
+                  const indexValue = item.currentIndex ?? item.readingValue ?? 0;
+                  const consumption = item.consumption ?? 0;
+                  
+                  // Determine status styling
+                  const isApproved = status === 'approved';
+                  const isPending = status === 'pending' || status === 're_submitted';
+                  const isRejected = status === 'rejected';
+                  
+                  // Check if there's an image
+                  const hasImage = !!(item.evidencePhotoUrl || item.photoUrls);
+                  
+                  return (
+                    <TouchableOpacity
+                      key={`${item.meterReadingId || item.readingId || item.id}-${idx}`}
+                      style={styles.resultCard}
+                      onPress={() => {
+                        const readingIdValue = item.meterReadingId || item.readingId || item.id;
+                        
+                        if (selectedMeterId && readingIdValue) {
+                          router.push({
+                            pathname: '/reading-details',
+                            params: {
+                              meterId: String(selectedMeterId),
+                              readingId: String(readingIdValue),
+                              customerName: customerName,
+                            },
+                          });
+                        } else {
+                          Alert.alert('Erreur', 'Impossible d\'ouvrir les détails de ce relevé.');
+                        }
+                      }}
+                    >
+                      <View style={styles.resultCardContent}>
+                        <View style={styles.resultDateBox}>
+                          <Text style={styles.resultDay}>{date.getDate()}</Text>
+                          <Text style={styles.resultMonth}>
+                            {date.toLocaleDateString(currentLang, { month: 'short' }).toUpperCase()}
                           </Text>
                         </View>
-                      </View>
 
-                      <Text style={styles.chevron}>{I18nManager.isRTL ? '‹' : '›'}</Text>
-                    </View>
+                        <View style={styles.resultInfo}>
+                          <View style={styles.resultValueRow}>
+                            <Text style={styles.resultValue}>
+                              {indexValue} <Text style={styles.unit}>{t('dashboard.unit')}</Text>
+                            </Text>
+                            {hasImage && <Text style={styles.imageIndicator}>📷</Text>}
+                          </View>
+                          <Text style={styles.consumptionText}>
+                            Consommation: {consumption} {t('dashboard.unit')}
+                          </Text>
+                          <View style={[
+                            styles.statusBadge, 
+                            isApproved && styles.statusSuccess,
+                            isPending && styles.statusPending,
+                            isRejected && styles.statusRejected
+                          ]}>
+                            <Text style={[
+                              styles.statusText, 
+                              isApproved && styles.textSuccess,
+                              isPending && styles.textPending,
+                              isRejected && styles.textRejected
+                            ]}>
+                              {isApproved ? t('dashboard.validated') : 
+                               isPending ? t('dashboard.pending') : 
+                               isRejected ? t('dashboard.rejected') : 
+                               item.status}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text style={styles.chevron}>{I18nManager.isRTL ? '‹' : '›'}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <View style={styles.pagination}>
+                  <TouchableOpacity
+                    style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                    onPress={handlePrevPage}
+                    disabled={currentPage === 1 || isLoadingReadings}
+                  >
+                    <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>
+                      ← Précédent
+                    </Text>
                   </TouchableOpacity>
-                );
-              })}
-            </View>
+
+                  <View style={styles.paginationInfo}>
+                    <Text style={styles.paginationText}>
+                      Page {currentPage} / {totalPages}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                    onPress={handleNextPage}
+                    disabled={currentPage === totalPages || isLoadingReadings}
+                  >
+                    <Text style={[styles.paginationButtonText, currentPage === totalPages && styles.paginationButtonTextDisabled]}>
+                      Suivant →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
           ) : (
               <View style={styles.emptyStateContainer}>
                 <Text style={styles.emptyStateIcon}>📊</Text>
@@ -527,6 +646,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF7ED',
     borderColor: '#FFEDD5',
   },
+  statusRejected: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
   statusText: {
     fontSize: 10,
     fontWeight: '700',
@@ -536,6 +659,9 @@ const styles = StyleSheet.create({
   },
   textPending: {
     color: '#C2410C',
+  },
+  textRejected: {
+    color: '#DC2626',
   },
   chevron: {
     fontSize: 20,
@@ -564,6 +690,77 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  customerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  customerBannerIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  customerBannerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  resultValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  imageIndicator: {
+    fontSize: 16,
+  },
+  consumptionText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  pagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 12,
+  },
+  paginationButton: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+  },
+  paginationButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  paginationButtonTextDisabled: {
+    color: '#94A3B8',
+  },
+  paginationInfo: {
+    paddingHorizontal: 12,
+  },
+  paginationText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
   },
 });
 

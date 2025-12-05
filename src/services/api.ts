@@ -373,9 +373,13 @@ export const meterApi = {
     });
   },
 
-  getReadings: async (meterId: number) => {
-    // Use the meter-readings endpoint with meterId filter
-    return await apiRequest(`/meter-readings?meterId=${meterId}&page=1&limit=50`, {
+  getReadings: async (meterId: number, page: number = 1, limit: number = 50, startDate?: string) => {
+    // Use the meter-readings endpoint with meterId filter and pagination
+    let url = `/meter-readings?meterId=${meterId}&page=${page}&limit=${limit}`;
+    if (startDate) {
+      url += `&startDate=${startDate}`;
+    }
+    return await apiRequest(url, {
       method: 'GET',
     });
   },

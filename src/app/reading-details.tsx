@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Alert, TouchableOpacity, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { meterApi } from '../services/api';
 
 export default function ReadingDetailsPage() {
   const router = useRouter();
-  const { meterId: meterIdParam, readingId: readingIdParam } = useLocalSearchParams<{ meterId?: string; readingId?: string }>();
+  const { 
+    meterId: meterIdParam, 
+    readingId: readingIdParam,
+    customerName: customerNameParam 
+  } = useLocalSearchParams<{ meterId?: string; readingId?: string; customerName?: string }>();
   const meterId = useMemo(() => (meterIdParam ? Number(meterIdParam) : NaN), [meterIdParam]);
   const readingId = useMemo(() => (readingIdParam ? Number(readingIdParam) : NaN), [readingIdParam]);
 
@@ -19,20 +23,42 @@ export default function ReadingDetailsPage() {
   useEffect(() => {
     const load = async () => {
       if (!meterId || Number.isNaN(meterId) || !readingId || Number.isNaN(readingId)) {
-        Alert.alert('Erreur', 'Paramètres de relevé invalides.');
+        Alert.alert('Erreur', 'Paramètres de relevé invalides.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
         setLoading(false);
         return;
       }
       try {
-        const [meterRes, readingsRes] = await Promise.all([
-          meterApi.getMeterById(meterId),
-          meterApi.getReadings(meterId),
-        ]);
-        setMeter(meterRes.data);
-        const found = (readingsRes.data || []).find((r: any) => Number(r.readingId) === Number(readingId));
-        setReading(found || null);
+        // Only fetch readings - meter data is included in the reading object
+        const readingsRes = await meterApi.getReadings(meterId);
+        
+        // Extract readings from response
+        const readingsData = Array.isArray(readingsRes?.data?.data) 
+          ? readingsRes.data.data 
+          : Array.isArray(readingsRes?.data) 
+          ? readingsRes.data 
+          : [];
+        
+        // Try multiple ID fields
+        const found = readingsData.find((r: any) => {
+          const rId = r.meterReadingId || r.readingId || r.id;
+          return Number(rId) === Number(readingId);
+        });
+        
+        if (!found) {
+          Alert.alert('Erreur', 'Ce relevé n\'existe pas ou a été supprimé.', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
+        } else {
+          // Extract meter data from the reading object
+          setMeter(found.meter || null);
+          setReading(found);
+        }
       } catch (e: any) {
-        Alert.alert('Erreur', e?.message || 'Impossible de charger les détails du relevé.');
+        Alert.alert('Erreur', e?.message || 'Impossible de charger les détails du relevé.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
       } finally {
         setLoading(false);
       }
@@ -42,73 +68,291 @@ export default function ReadingDetailsPage() {
 
   let photos: string[] = [];
   try {
-    photos = reading?.photoUrls ? JSON.parse(reading.photoUrls) || [] : [];
+    if (reading?.evidencePhotoUrl) {
+      // Single photo URL
+      photos = [reading.evidencePhotoUrl];
+    } else if (reading?.photoUrls) {
+      // Multiple photos (JSON array)
+      photos = JSON.parse(reading.photoUrls) || [];
+    }
   } catch {
     photos = [];
   }
+  
+  const status = String(reading?.status || '').toLowerCase();
+  const isApproved = status === 'approved';
+  const isPending = status === 'pending' || status === 're_submitted';
+  const isRejected = status === 'rejected';
+  
+  const indexValue = reading?.currentIndex ?? reading?.readingValue ?? 0;
+  const previousValue = reading?.previousIndex ?? 0;
+  const consumption = reading?.consumption ?? Math.max(0, indexValue - previousValue);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>{'< Retour'}</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Détails Relevé</Text>
-        <View style={{ width: 60 }} />
+        <Text style={styles.headerTitle}>Détails du Relevé</Text>
+        <View style={styles.placeholder} />
       </View>
 
       {loading ? (
-        <View style={styles.loaderBox}>
-          <ActivityIndicator size="large" color="#0066cc" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       ) : !reading ? (
-        <View style={styles.loaderBox}>
-          <Text style={styles.errorText}>Relevé introuvable.</Text>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.emptyStateIcon}>📊</Text>
+          <Text style={styles.emptyStateTitle}>Relevé introuvable</Text>
+          <Text style={styles.emptyStateText}>Ce relevé n'existe pas ou a été supprimé.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* Client Info */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Client</Text>
-            <Text style={styles.cardItem}>Nom: {meter?.customer?.fullName || '—'}</Text>
-            <Text style={styles.cardItem}>Téléphone: {meter?.customer?.phone || '—'}</Text>
-            <Text style={styles.cardItem}>Compteur: {meter?.meterNumber || meter?.meterId || '—'}</Text>
-            <Text style={styles.cardItem}>Adresse: {meter?.customer?.Address ? `${meter.customer.Address.street || ''} ${meter.customer.Address.city || ''}` : '—'}</Text>
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Status Badge */}
+          <View style={styles.section}>
+            <View style={[
+              styles.statusCard,
+              isApproved && styles.statusCardSuccess,
+              isPending && styles.statusCardPending,
+              isRejected && styles.statusCardRejected
+            ]}>
+              <Text style={styles.statusIcon}>
+                {isApproved ? '✓' : isPending ? '⏱' : isRejected ? '✕' : '•'}
+              </Text>
+              <View style={styles.statusInfo}>
+                <Text style={styles.statusLabel}>Statut du relevé</Text>
+                <Text style={[
+                  styles.statusValue,
+                  isApproved && styles.statusValueSuccess,
+                  isPending && styles.statusValuePending,
+                  isRejected && styles.statusValueRejected
+                ]}>
+                  {isApproved ? 'Approuvé' : isPending ? 'En attente' : isRejected ? 'Rejeté' : reading.status}
+                </Text>
+              </View>
+            </View>
           </View>
 
-          {/* Reading Info */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Relevé</Text>
-            <Text style={styles.cardItem}>Date: {reading.readingDate ? new Date(reading.readingDate).toLocaleString() : '—'}</Text>
-            <Text style={styles.cardItem}>Index: {typeof reading.readingValue === 'number' ? reading.readingValue : Number(reading.readingValue) || '—'}</Text>
-            <Text style={styles.cardItem}>Statut: {reading.status || '—'}</Text>
-            {reading.notes ? <Text style={styles.cardItem}>Notes: {reading.notes}</Text> : null}
+          {/* Reading Stats */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Informations du Relevé</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statIcon}>📈</Text>
+                <Text style={styles.statValue}>{indexValue}</Text>
+                <Text style={styles.statLabel}>Index Actuel</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statIcon}>📊</Text>
+                <Text style={styles.statValue}>{previousValue}</Text>
+                <Text style={styles.statLabel}>Index Préc.</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statIcon}>💧</Text>
+                <Text style={styles.statValue}>{consumption}</Text>
+                <Text style={styles.statLabel}>Consommation</Text>
+              </View>
+            </View>
           </View>
+
+          {/* Date & Time */}
+          <View style={styles.section}>
+            <View style={styles.infoCard}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoIcon}>📅</Text>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Date du relevé</Text>
+                  <Text style={styles.infoValue}>
+                    {reading.readingDate 
+                      ? new Date(reading.readingDate).toLocaleDateString('fr-FR', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                      : '—'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoIcon}>🕐</Text>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Heure</Text>
+                  <Text style={styles.infoValue}>
+                    {reading.readingDate 
+                      ? new Date(reading.readingDate).toLocaleTimeString('fr-FR', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Client Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Informations Client</Text>
+            <View style={styles.clientCard}>
+              <View style={styles.clientHeader}>
+                <View style={styles.avatarContainer}>
+                  <Text style={styles.avatarText}>
+                    {customerNameParam 
+                      ? customerNameParam.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                      : (meter?.customer?.firstName?.[0] || '') + (meter?.customer?.lastName?.[0] || 'CL')}
+                  </Text>
+                </View>
+                <View style={styles.clientInfo}>
+                  <Text style={styles.clientName}>
+                    {customerNameParam || 
+                     (meter?.customer?.firstName && meter?.customer?.lastName 
+                       ? `${meter.customer.firstName} ${meter.customer.lastName}` 
+                       : meter?.customer?.name || '—')}
+                  </Text>
+                  <Text style={styles.clientDetail}>
+                    {meter?.customer?.phone || meter?.customer?.phoneNumber || 'Téléphone non disponible'}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.divider} />
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Compteur</Text>
+                <Text style={styles.detailValue}>{meter?.meterNumber || '—'}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Code Client</Text>
+                <Text style={styles.detailValue}>{meter?.customer?.customerCode || '—'}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Adresse</Text>
+                <Text style={styles.detailValue}>
+                  {meter?.customer?.address 
+                    ? `${meter.customer.address.streetName || ''} ${meter.customer.address.streetNumber || ''}, ${meter.customer.address.city?.cityName || ''}`.trim()
+                    : '—'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Agent Information */}
+          {reading?.agent && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Agent Releveur</Text>
+              <View style={styles.agentCard}>
+                <View style={styles.agentHeader}>
+                  <View style={styles.agentAvatarContainer}>
+                    <Text style={styles.agentAvatarText}>
+                      {(reading.agent.firstName?.[0] || '') + (reading.agent.lastName?.[0] || '')}
+                    </Text>
+                  </View>
+                  <View style={styles.agentInfo}>
+                    <Text style={styles.agentName}>
+                      {reading.agent.firstName} {reading.agent.lastName}
+                    </Text>
+                    <Text style={styles.agentDetail}>
+                      {reading.agent.email || '—'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Access Reason */}
+          {reading?.accessReason && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Accès au Compteur</Text>
+              <View style={styles.accessCard}>
+                <Text style={styles.accessIcon}>
+                  {reading.accessReason === 'Accessed' ? '✓' : '🚪'}
+                </Text>
+                <Text style={styles.accessText}>
+                  {reading.accessReason === 'Accessed' 
+                    ? 'Compteur accessible' 
+                    : reading.accessReason === 'Door_Closed'
+                    ? 'Porte fermée / Compteur inaccessible'
+                    : reading.accessReason}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Location */}
+          {(reading?.longitude || reading?.latitude) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Localisation</Text>
+              <View style={styles.locationCard}>
+                <Text style={styles.locationIcon}>📍</Text>
+                <View style={styles.locationInfo}>
+                  <Text style={styles.locationLabel}>Coordonnées GPS</Text>
+                  <Text style={styles.locationValue}>
+                    Lat: {reading.latitude || '—'} | Long: {reading.longitude || '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Comments */}
+          {(reading?.comments || reading?.notes) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Commentaires</Text>
+              <View style={styles.commentsCard}>
+                <Text style={styles.commentsText}>{reading.comments || reading.notes}</Text>
+              </View>
+            </View>
+          )}
 
           {/* Photos */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Photos</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Photo du Compteur</Text>
             {photos.length === 0 ? (
-              <Text style={styles.cardItem}>Aucune photo associée.</Text>
+              <View style={styles.emptyPhotoCard}>
+                <Text style={styles.emptyPhotoIcon}>📷</Text>
+                <Text style={styles.emptyPhotoText}>Aucune photo disponible</Text>
+              </View>
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+              <View style={styles.photoGrid}>
                 {photos.map((uri, i) => (
-                  <TouchableOpacity key={`${uri}-${i}`} onPress={() => { setViewerIndex(i); setViewerVisible(true); }}>
-                    <Image source={{ uri }} style={styles.photo} />
+                  <TouchableOpacity 
+                    key={`${uri}-${i}`} 
+                    style={styles.photoContainer}
+                    onPress={() => { setViewerIndex(i); setViewerVisible(true); }}
+                  >
+                    <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
+                    <View style={styles.photoOverlay}>
+                      <Text style={styles.photoOverlayText}>👁 Voir</Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
             )}
           </View>
+
           {/* Fullscreen Image Viewer */}
           {viewerVisible && (
             <View style={styles.viewerOverlay}>
               <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerVisible(false)}>
-                <Text style={styles.viewerCloseText}>✕</Text>
+                <View style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </View>
               </TouchableOpacity>
               <View style={styles.viewerContent}>
                 {photos[viewerIndex] ? (
-                  <Image source={{ uri: photos[viewerIndex] }} style={styles.viewerImage} />
+                  <Image source={{ uri: photos[viewerIndex] }} style={styles.viewerImage} resizeMode="contain" />
                 ) : (
                   <Text style={styles.errorText}>Image introuvable</Text>
                 )}
@@ -122,46 +366,444 @@ export default function ReadingDetailsPage() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f7f9fc' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
-  backBtn: { paddingVertical: 8, paddingHorizontal: 8 },
-  backText: { color: '#0066cc', fontWeight: '600' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  loaderBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorText: { color: '#b91c1c' },
-  content: { padding: 16 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 12,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  backArrow: {
+    fontSize: 18,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  placeholder: {
+    width: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    marginTop: 16,
+    color: '#64748B',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 24,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 16,
+    textAlign: 'left',
+  },
+  statusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+  },
+  statusCardSuccess: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  statusCardPending: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+  },
+  statusCardRejected: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+  statusIcon: {
+    fontSize: 32,
+    marginRight: 16,
+  },
+  statusInfo: {
+    flex: 1,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  statusValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  statusValueSuccess: {
+    color: '#166534',
+  },
+  statusValuePending: {
+    color: '#C2410C',
+  },
+  statusValueRejected: {
+    color: '#DC2626',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  statIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  infoCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  clientCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  clientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  clientInfo: {
+    flex: 1,
+  },
+  clientName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  clientDetail: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
     marginBottom: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e5e7eb',
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1f2937', marginBottom: 4 },
-  cardItem: { fontSize: 14, color: '#374151', marginTop: 2 },
-  photo: { width: 160, height: 160, borderRadius: 8, marginRight: 10, backgroundColor: '#f3f4f6' },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  detailValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+    flex: 1,
+    textAlign: 'right',
+  },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  locationIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  locationValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  commentsCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  commentsText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  photoGrid: {
+    gap: 12,
+  },
+  photoContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  photo: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#F8FAFC',
+  },
+  photoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    alignItems: 'center',
+  },
+  photoOverlayText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyPhotoCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyPhotoIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  emptyPhotoText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  emptyStateIcon: {
+    fontSize: 40,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   viewerOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  viewerContent: { width: '92%', height: '80%', justifyContent: 'center', alignItems: 'center' },
-  viewerImage: { width: '100%', height: '100%', resizeMode: 'contain', borderRadius: 8 },
-  viewerClose: { position: 'absolute', top: 24, right: 24, padding: 8 },
-  viewerCloseText: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
+  viewerContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  viewerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  viewerClose: {
+    position: 'absolute',
+    top: 60,
+    right: 24,
+    zIndex: 10,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  agentCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  agentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  agentAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  agentAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  agentInfo: {
+    flex: 1,
+  },
+  agentName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  agentDetail: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  accessCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  accessIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  accessText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    flex: 1,
+  },
 });

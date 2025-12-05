@@ -30,7 +30,10 @@ export default {
     searchInstruction:
       "Recherchez un client par code ci-dessus pour consulter l'historique.",
     validated: "Validé",
-    unit: "kWh",
+    pending: "En attente",
+    rejected: "Rejeté",
+    rejectedCanRetake: "Dernier relevé rejeté - Vous pouvez soumettre un nouveau relevé",
+    unit: "m³",
   },
   auth: {
     loginTitle: "Connexion Agent",

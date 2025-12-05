@@ -150,7 +150,7 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -165,17 +165,23 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   backIcon: {
-    fontSize: 24,
-    color: '#0F172A',
+    fontSize: 18,
+    color: '#3B82F6',
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
+    textAlign: 'center',
   },
   placeholder: {
     width: 40,
@@ -190,18 +196,23 @@ const styles = StyleSheet.create({
   profileSection: {
     alignItems: 'center',
     marginBottom: 32,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#3B82F6', // Primary Blue
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -234,7 +245,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -266,31 +277,31 @@ const styles = StyleSheet.create({
   langOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     padding: 16,
   },
   langOptionActive: {
-    borderColor: '#3B82F6', // Primary Blue
-    backgroundColor: '#EFF6FF', // Light Blue bg
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
   },
   langRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: '#CBD5E1',
-    marginRight: 12, // Will need I18n adjustment if fully automated, but flex row handles direction
+    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   langRadioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#3B82F6', // Primary Blue
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#3B82F6',
   },
   langText: {
     fontSize: 16,
@@ -303,10 +314,15 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     marginTop: 24,
-    backgroundColor: '#EF4444', // Red for logout
-    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
     paddingVertical: 16,
     alignItems: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   logoutText: {
     color: '#FFFFFF',
