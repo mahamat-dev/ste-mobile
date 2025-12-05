@@ -1,18 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image,
-  Dimensions,
-  Animated,
-  Easing,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const { height: screenHeight } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getClientBillingInfo, Client } from '../services/mockDataService';
 
@@ -21,96 +17,6 @@ const ClientRouterScreen = () => {
   const { clientId } = useLocalSearchParams();
   const [clientProfile, setClientProfile] = useState<Client | null>(null);
 
-  // Page entrance animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(20)).current;
-
-  // Button press animations
-  const scalePay = useRef(new Animated.Value(1)).current;
-  const scaleComplain = useRef(new Animated.Value(1)).current;
-  const shadowPay = useRef(new Animated.Value(1)).current; // 1: normal, 0: pressed
-  const shadowComplain = useRef(new Animated.Value(1)).current;
-
-  const animateIn = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 350,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 350,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  // Dedicated handlers to sync scale + shadow animations
-  const onPressInPay = () => {
-    Animated.parallel([
-      Animated.spring(scalePay, {
-        toValue: 0.97,
-        speed: 20,
-        bounciness: 0,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shadowPay, {
-        toValue: 0,
-        duration: 120,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  };
-  const onPressOutPay = () => {
-    Animated.parallel([
-      Animated.spring(scalePay, {
-        toValue: 1,
-        speed: 20,
-        bounciness: 6,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shadowPay, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  };
-
-  const onPressInComplain = () => {
-    Animated.parallel([
-      Animated.spring(scaleComplain, {
-        toValue: 0.97,
-        speed: 20,
-        bounciness: 0,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shadowComplain, {
-        toValue: 0,
-        duration: 120,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  };
-  const onPressOutComplain = () => {
-    Animated.parallel([
-      Animated.spring(scaleComplain, {
-        toValue: 1,
-        speed: 20,
-        bounciness: 6,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shadowComplain, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  };
-
   useEffect(() => {
     const loadClientData = async () => {
       try {
@@ -118,17 +24,12 @@ const ClientRouterScreen = () => {
         if (storedData) {
           const profile = JSON.parse(storedData);
           setClientProfile(profile);
-        } else {
-           // Fallback to params if storage empty (shouldn't happen if flow is correct)
-           // Or fetch using clientId param if available
         }
       } catch (error) {
         console.error('Error loading client data:', error);
       }
     };
-    
     loadClientData();
-    animateIn();
   }, [clientId]);
 
   const handleCheckPaymentStatus = async () => {
@@ -138,9 +39,7 @@ const ClientRouterScreen = () => {
       if (billingInfo) {
         router.push({
           pathname: '/billing-info',
-          params: {
-            clientData: JSON.stringify(billingInfo)
-          }
+          params: { clientData: JSON.stringify(billingInfo) },
         });
       }
     } catch (error) {
@@ -151,9 +50,7 @@ const ClientRouterScreen = () => {
   const handleComplain = () => {
     router.push({
       pathname: '/complaint-form',
-      params: {
-        clientId: clientProfile?.clientId || (clientId as string)
-      }
+      params: { clientId: clientProfile?.clientId || (clientId as string) },
     });
   };
 
@@ -161,216 +58,362 @@ const ClientRouterScreen = () => {
     router.back();
   };
 
+  const displayName = clientProfile?.name?.split(' ')[0] || 'Client';
+  const initials = clientProfile?.name
+    ?.split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'CL';
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.backArrow} onPress={handleBackPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.backArrowText}>←</Text>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+          <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <View style={styles.clientChip}>
-          <Text style={styles.clientChipText}>
-            {clientProfile ? `${clientProfile.name.split(' ')[0]}, ${clientId}` : clientId}
-          </Text>
-        </View>
+        <Text style={styles.headerTitle}>Mon Espace</Text>
+        <View style={styles.placeholder} />
       </View>
 
-      <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY }] }]}> 
-        <View style={styles.topSection}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Client Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{clientProfile?.name || 'Client'}</Text>
+              <Text style={styles.profileId}>{clientId}</Text>
+            </View>
+          </View>
+          {clientProfile?.address && (
+            <View style={styles.profileDetail}>
+              <Text style={styles.detailIcon}>📍</Text>
+              <Text style={styles.detailText}>{clientProfile.address}</Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.bottomSection}>
+        {/* Welcome Section */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeTitle}>Bonjour, {displayName} 👋</Text>
+          <Text style={styles.welcomeSubtitle}>Que souhaitez-vous faire aujourd'hui ?</Text>
+        </View>
+
+        {/* Action Cards */}
+        <View style={styles.actionsContainer}>
+          {/* Payment Status Card */}
           <TouchableOpacity
-            style={styles.touchableCard}
+            style={styles.actionCard}
             onPress={handleCheckPaymentStatus}
-            activeOpacity={0.85}
-            onPressIn={onPressInPay}
-            onPressOut={onPressOutPay}
+            activeOpacity={0.8}
           >
-            <Animated.View
-              style={[
-                styles.serviceButtonGreen,
-                {
-                  shadowOpacity: shadowPay.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.12] }),
-                  shadowRadius: shadowPay.interpolate({ inputRange: [0, 1], outputRange: [6, 10] }),
-                  elevation: shadowPay.interpolate({ inputRange: [0, 1], outputRange: [2, 5] }),
-                  transform: [
-                    { translateY: shadowPay.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
-                  ],
-                },
-              ]}
-            >
-              <Animated.View style={[styles.buttonContent, { transform: [{ scale: scalePay }] }]}> 
-                <Animated.Image 
-                  source={require('../../assets/status.png')} 
-                  style={[styles.buttonImage, { transform: [{ scale: scalePay.interpolate({ inputRange: [0.97, 1], outputRange: [0.96, 1] }) }] }]}
-                />
-                <View style={styles.buttonTextContainer}>
-                  <Text style={styles.buttonTitle}>Vérifier le Statut de Paiement</Text>
-                  <Text style={styles.buttonDescription}>Consultez vos factures et paiements</Text>
-                </View>
-              </Animated.View>
-            </Animated.View>
+            <View style={styles.actionIconContainer}>
+              <Text style={styles.actionIcon}>💳</Text>
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Mes Factures</Text>
+              <Text style={styles.actionDescription}>
+                Consultez vos factures et l'historique de vos paiements
+              </Text>
+            </View>
+            <View style={styles.actionArrowContainer}>
+              <Text style={styles.actionArrow}>→</Text>
+            </View>
           </TouchableOpacity>
 
+          {/* Complaint Card */}
           <TouchableOpacity
-            style={styles.touchableCard}
+            style={styles.actionCard}
             onPress={handleComplain}
-            activeOpacity={0.85}
-            onPressIn={onPressInComplain}
-            onPressOut={onPressOutComplain}
+            activeOpacity={0.8}
           >
-            <Animated.View
-              style={[
-                styles.serviceButtonYellow,
-                {
-                  shadowOpacity: shadowComplain.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.12] }),
-                  shadowRadius: shadowComplain.interpolate({ inputRange: [0, 1], outputRange: [6, 10] }),
-                  elevation: shadowComplain.interpolate({ inputRange: [0, 1], outputRange: [2, 5] }),
-                  transform: [
-                    { translateY: shadowComplain.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
-                  ],
-                },
-              ]}
-            >
-              <Animated.View style={[styles.buttonContent, { transform: [{ scale: scaleComplain }] }]}> 
-                <Animated.Image 
-                  source={require('../../assets/complain.png')} 
-                  style={[styles.buttonImage, { transform: [{ scale: scaleComplain.interpolate({ inputRange: [0.97, 1], outputRange: [0.96, 1] }) }] }]}
-                />
-                <View style={styles.buttonTextContainer}>
-                  <Text style={styles.buttonTitle}>Déposer une Complainte</Text>
-                  <Text style={styles.buttonDescription}>Exprimez vos préoccupations et doléances</Text>
-                </View>
-              </Animated.View>
-            </Animated.View>
+            <View style={[styles.actionIconContainer, styles.actionIconOrange]}>
+              <Text style={styles.actionIcon}>📝</Text>
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Réclamation</Text>
+              <Text style={styles.actionDescription}>
+                Signalez un problème ou déposez une réclamation
+              </Text>
+            </View>
+            <View style={styles.actionArrowContainer}>
+              <Text style={styles.actionArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Consumption Card */}
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={handleCheckPaymentStatus}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionIconContainer, styles.actionIconGreen]}>
+              <Text style={styles.actionIcon}>📊</Text>
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Ma Consommation</Text>
+              <Text style={styles.actionDescription}>
+                Suivez votre consommation d'eau mensuelle
+              </Text>
+            </View>
+            <View style={styles.actionArrowContainer}>
+              <Text style={styles.actionArrow}>→</Text>
+            </View>
           </TouchableOpacity>
         </View>
-      </Animated.View>
+
+        {/* Quick Stats */}
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Aperçu rapide</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Text style={styles.statIcon}>💧</Text>
+              <Text style={styles.statValue}>--</Text>
+              <Text style={styles.statLabel}>m³ ce mois</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statIcon}>📄</Text>
+              <Text style={styles.statValue}>--</Text>
+              <Text style={styles.statLabel}>Factures</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statIcon}>✅</Text>
+              <Text style={styles.statValue}>--</Text>
+              <Text style={styles.statLabel}>Payées</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
+
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 15,
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  touchableCard: {
-    borderRadius: 16,
-    marginBottom: 20,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-    justifyContent: 'center',
-  },
-  topSection: {
-    alignItems: 'center',
-    marginBottom: 60,
-  },
-  bottomSection: {
-    gap: 16,
-  },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
-  
-  placeholder: {
-    width: 44,
-  },
-  header: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   backArrow: {
-    paddingLeft: 10,
-  },
-  backArrowText: {
-    fontSize: 24,
-    lineHeight: 24,
+    fontSize: 18,
     color: '#3B82F6',
-    fontWeight: 'bold',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-
-  
-  clientChip: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'center',
-  },
-  clientChipText: {
-    fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
   },
-  serviceButtonYellow: {
-    backgroundColor: '#FEF3C7', // brighter amber-100
-    borderRadius: 16,
-    paddingHorizontal: 15,
-    paddingVertical: 25,
-    marginBottom: 20,
-    height: screenHeight * 0.20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
   },
-  serviceButtonGreen: {
-    backgroundColor: '#DCFCE7', // brighter green-100
-    borderRadius: 16,
-    paddingHorizontal: 15,
-    paddingVertical: 25,
-    marginBottom: 20,
-    height: screenHeight * 0.20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+  placeholder: {
+    width: 40,
   },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: '100%',
-  },
-  buttonImage: {
-    width: 80,
-    height: 80,
-    marginRight: 20,
-  },
-  buttonTextContainer: {
+  content: {
     flex: 1,
   },
-  buttonTitle: {
-    fontSize: 24,
+  scrollContent: {
+    padding: 24,
+  },
+  profileCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 20,
     fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    color: '#3B82F6',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 4,
   },
-  buttonDescription: {
-    fontSize: 18,
-    fontFamily: 'Inter_400Regular',
-    color: '#64748B',
-    lineHeight: 24,
+  profileId: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontWeight: '600',
   },
-
+  profileDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  detailIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+    flex: 1,
+  },
+  welcomeSection: {
+    marginBottom: 24,
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  welcomeSubtitle: {
+    fontSize: 15,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  actionsContainer: {
+    gap: 12,
+    marginBottom: 32,
+  },
+  actionCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  actionIconOrange: {
+    backgroundColor: '#FFF7ED',
+  },
+  actionIconGreen: {
+    backgroundColor: '#F0FDF4',
+  },
+  actionIcon: {
+    fontSize: 24,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  actionDescription: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  actionArrowContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionArrow: {
+    fontSize: 16,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  statsSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
 
 export default ClientRouterScreen;

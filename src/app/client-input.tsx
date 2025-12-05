@@ -9,7 +9,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { getClientProfile } from '../services/mockDataService';
 import { customerApi } from '../services/api';
@@ -38,7 +41,6 @@ const ClientInputScreen = () => {
     try {
       let customerData = null;
 
-      // Try real API first
       try {
         const response = await customerApi.searchByCode(trimmedId, trimmedPhone || undefined);
         if (response.success && response.data) {
@@ -46,140 +48,160 @@ const ClientInputScreen = () => {
         }
       } catch (apiError) {
         console.log('API search failed, falling back to mock data', apiError);
-        // Fallback to mock data
         const profile = await getClientProfile(trimmedId);
         if (profile) {
-           // Check phone number match if provided in mock
-           if (trimmedPhone && profile.phoneNumber && !profile.phoneNumber.includes(trimmedPhone)) {
-               // Phone mismatch in mock
-               customerData = null;
-           } else {
-               customerData = profile;
-           }
+          if (trimmedPhone && profile.phoneNumber && !profile.phoneNumber.includes(trimmedPhone)) {
+            customerData = null;
+          } else {
+            customerData = profile;
+          }
         }
       }
-      
+
       if (customerData) {
-        // Store customer data for session
         await AsyncStorage.setItem('customer_data', JSON.stringify(customerData));
-        
         router.push({
           pathname: '/client-router',
-          params: {
-            clientId: trimmedId
-          }
+          params: { clientId: trimmedId },
         });
       } else {
         Alert.alert(
           'Client non trouvé',
-          `Le client avec le code "${trimmedId}" ${trimmedPhone ? 'et ce numéro de téléphone ' : ''}n'a pas été trouvé. Veuillez vérifier et réessayer.`,
-          [
-            {
-              text: 'Réessayer',
-              onPress: () => {}
-            }
-          ]
+          `Le client avec le code "${trimmedId}" ${trimmedPhone ? 'et ce numéro de téléphone ' : ''}n'a pas été trouvé.`,
+          [{ text: 'Réessayer' }]
         );
       }
     } catch (error) {
-      Alert.alert(
-        'Erreur',
-        'Une erreur est survenue. Veuillez réessayer.'
-      );
+      Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>STE</Text>
-          <Text style={styles.subtitle}>Société Tchadienne des Eaux</Text>
-        </View>
-
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Bienvenue</Text>
-          <Text style={styles.welcomeText}>Choisissez votre espace</Text>
-        </View>
-
-        {/* Agent Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>👤</Text>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Logo & Branding */}
+          <View style={styles.brandingSection}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoEmoji}>💧</Text>
             </View>
-            <View style={styles.sectionInfo}>
-              <Text style={styles.sectionTitle}>Espace Agent</Text>
-              <Text style={styles.sectionDescription}>Accédez à votre tableau de bord</Text>
-            </View>
+            <Text style={styles.brandName}>STE</Text>
+            <Text style={styles.brandTagline}>Société Tchadienne des Eaux</Text>
           </View>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleAgentLogin}>
-            <Text style={styles.primaryButtonText}>Se connecter</Text>
-            <Text style={styles.buttonArrow}>→</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Divider */}
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Customer Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
-              <Text style={styles.iconText}>💧</Text>
-            </View>
-            <View style={styles.sectionInfo}>
-              <Text style={styles.sectionTitle}>Espace Client</Text>
-              <Text style={styles.sectionDescription}>Consultez vos factures</Text>
-            </View>
+          {/* Welcome */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeTitle}>Bienvenue</Text>
+            <Text style={styles.welcomeSubtitle}>Choisissez votre espace pour continuer</Text>
           </View>
-          <TextInput
-            style={styles.input}
-            value={searchId}
-            onChangeText={setSearchId}
-            placeholder="Code Client (ex: CUST-001)"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            editable={!isLoading}
-          />
-          <TextInput
-            style={styles.input}
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            placeholder="Numéro de téléphone (Optionnel)"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="phone-pad"
-            editable={!isLoading}
-          />
-          <TouchableOpacity
-            style={[styles.secondaryButton, isLoading && styles.buttonDisabled]}
-            onPress={handleCustomerSearch}
-            disabled={isLoading}
+
+          {/* Agent Card */}
+          <TouchableOpacity 
+            style={styles.agentCard} 
+            onPress={handleAgentLogin} 
+            activeOpacity={0.9}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#3B82F6" size="small" />
-            ) : (
-              <>
-                <Text style={styles.secondaryButtonText}>Consulter</Text>
-                  <Text style={[styles.buttonArrow, { color: '#3B82F6' }]}>→</Text>
-              </>
-            )}
+            <View style={styles.agentCardContent}>
+              <View style={styles.agentIconContainer}>
+                <Text style={styles.agentIcon}>👤</Text>
+              </View>
+              <View style={styles.agentTextContainer}>
+                <Text style={styles.agentTitle}>Espace Agent</Text>
+                <Text style={styles.agentDescription}>Accéder au tableau de bord</Text>
+              </View>
+              <View style={styles.agentArrowContainer}>
+                <Text style={styles.agentArrow}>→</Text>
+              </View>
+            </View>
           </TouchableOpacity>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <View style={styles.dividerBadge}>
+              <Text style={styles.dividerText}>ou</Text>
+            </View>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Client Card */}
+          <View style={styles.clientCard}>
+            <View style={styles.clientHeader}>
+              <View style={styles.clientIconContainer}>
+                <Text style={styles.clientIcon}>📊</Text>
+              </View>
+              <View style={styles.clientTextContainer}>
+                <Text style={styles.clientTitle}>Espace Client</Text>
+                <Text style={styles.clientDescription}>Consulter vos factures</Text>
+              </View>
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>Code Client</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={searchId}
+                  onChangeText={setSearchId}
+                  placeholder="CUST-001"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>Téléphone (optionnel)</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  placeholder="66 00 00 00"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitButton, isLoading && styles.buttonDisabled]}
+              onPress={handleCustomerSearch}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.submitButtonText}>Consulter</Text>
+                  <Text style={styles.submitButtonArrow}>→</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>© 2024 STE - Tous droits réservés</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -188,140 +210,218 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  content: {
+  keyboardView: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
-  header: {
+  brandingSection: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
   },
-  logo: {
-    fontSize: 56,
-    fontWeight: 'bold',
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoEmoji: {
+    fontSize: 40,
+  },
+  brandName: {
+    fontSize: 32,
+    fontWeight: '800',
     color: '#3B82F6',
-    marginBottom: 8,
+    letterSpacing: 4,
+    marginBottom: 4,
   },
-  subtitle: {
+  brandTagline: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#64748B',
     fontWeight: '500',
   },
   welcomeSection: {
-    marginBottom: 40,
+    marginBottom: 24,
   },
   welcomeTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#111827',
+    color: '#0F172A',
     marginBottom: 8,
   },
-  welcomeText: {
+  welcomeSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#64748B',
+    fontWeight: '400',
   },
-  section: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#EBF5FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  iconText: {
-    fontSize: 28,
-  },
-  sectionInfo: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  primaryButton: {
+  agentCard: {
     backgroundColor: '#3B82F6',
     borderRadius: 16,
-    paddingVertical: 16,
+    padding: 20,
+    marginBottom: 8,
+  },
+  agentCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  agentIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  secondaryButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: 'row',
     alignItems: 'center',
+    marginRight: 14,
+  },
+  agentIcon: {
+    fontSize: 22,
+  },
+  agentTextContainer: {
+    flex: 1,
+  },
+  agentTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  agentDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  agentArrowContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#3B82F6',
+    alignItems: 'center',
   },
-  secondaryButtonText: {
-    color: '#3B82F6',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  buttonArrow: {
-    fontSize: 20,
+  agentArrow: {
+    fontSize: 18,
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  divider: {
+  dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 32,
+    marginVertical: 20,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E2E8F0',
+  },
+  dividerBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
   },
   dividerText: {
-    marginHorizontal: 16,
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#94A3B8',
     fontWeight: '500',
   },
-  input: {
+  clientCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  clientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  clientIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  clientIcon: {
+    fontSize: 22,
+  },
+  clientTextContainer: {
+    flex: 1,
+  },
+  clientTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  clientDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  inputWrapper: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  inputContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  input: {
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#111827',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+  submitButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  submitButtonArrow: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  footer: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 });
 
