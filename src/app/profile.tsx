@@ -27,19 +27,20 @@ const ProfileScreen = () => {
       t('common.confirmLogout'),
       [
         { text: t('common.cancel'), style: 'cancel' },
-        { 
-          text: t('common.logout'), 
+        {
+          text: t('common.logout'),
           style: 'destructive',
           onPress: async () => {
             try {
               await logout();
-              router.replace('/');
             } catch (error) {
               console.error('Logout error:', error);
-              router.replace('/');
+            } finally {
+              // Navigate to client-input after logout
+              router.replace('/client-input');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };

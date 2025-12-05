@@ -1,8 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Alert, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  Image, 
+  ActivityIndicator, 
+  Alert, 
+  TouchableOpacity, 
+  StatusBar,
+  Modal,
+  Dimensions,
+  Platform,
+  Animated,
+  PanResponder,
+  Share,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { meterApi } from '../services/api';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function ReadingDetailsPage() {
   const router = useRouter();
@@ -19,6 +37,92 @@ export default function ReadingDetailsPage() {
   const [meter, setMeter] = useState<any | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number>(0);
+  const [isSharing, setIsSharing] = useState(false);
+  
+  // Zoom state
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastScale = useRef(1);
+  const lastTranslateX = useRef(0);
+  const lastTranslateY = useRef(0);
+  
+  // Double tap detection
+  const lastTap = useRef<number>(0);
+  
+  const resetZoom = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true }),
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
+    ]).start();
+    lastScale.current = 1;
+    lastTranslateX.current = 0;
+    lastTranslateY.current = 0;
+  };
+  
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      // Double tap detected
+      if (lastScale.current > 1) {
+        resetZoom();
+      } else {
+        Animated.spring(scale, { toValue: 2.5, useNativeDriver: true }).start();
+        lastScale.current = 2.5;
+      }
+    }
+    lastTap.current = now;
+  };
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        handleDoubleTap();
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (lastScale.current > 1) {
+          translateX.setValue(lastTranslateX.current + gestureState.dx);
+          translateY.setValue(lastTranslateY.current + gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        lastTranslateX.current += gestureState.dx;
+        lastTranslateY.current += gestureState.dy;
+      },
+    })
+  ).current;
+  
+  const handleShare = async (imageUri: string) => {
+    try {
+      setIsSharing(true);
+      
+      await Share.share({
+        message: `Photo du compteur - Relevé #${readingId}`,
+        url: imageUri,
+      });
+    } catch (error: any) {
+      if (error?.message !== 'User did not share') {
+        console.error('Share error:', error);
+        Alert.alert('Erreur', 'Impossible de partager l\'image.');
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  };
+  
+  const openImageViewer = (index: number) => {
+    setViewerIndex(index);
+    resetZoom();
+    setViewerVisible(true);
+  };
+  
+  const closeImageViewer = () => {
+    setViewerVisible(false);
+    resetZoom();
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -89,8 +193,9 @@ export default function ReadingDetailsPage() {
   const consumption = reading?.consumption ?? Math.max(0, indexValue - previousValue);
 
   return (
+    <>
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={viewerVisible ? "light-content" : "dark-content"} backgroundColor={viewerVisible ? "#000000" : "#FFFFFF"} />
       
       {/* Header */}
       <View style={styles.header}>
@@ -330,7 +435,7 @@ export default function ReadingDetailsPage() {
                   <TouchableOpacity 
                     key={`${uri}-${i}`} 
                     style={styles.photoContainer}
-                    onPress={() => { setViewerIndex(i); setViewerVisible(true); }}
+                    onPress={() => openImageViewer(i)}
                   >
                     <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
                     <View style={styles.photoOverlay}>
@@ -341,27 +446,79 @@ export default function ReadingDetailsPage() {
               </View>
             )}
           </View>
-
-          {/* Fullscreen Image Viewer */}
-          {viewerVisible && (
-            <View style={styles.viewerOverlay}>
-              <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerVisible(false)}>
-                <View style={styles.closeButton}>
-                  <Text style={styles.closeButtonText}>✕</Text>
-                </View>
-              </TouchableOpacity>
-              <View style={styles.viewerContent}>
-                {photos[viewerIndex] ? (
-                  <Image source={{ uri: photos[viewerIndex] }} style={styles.viewerImage} resizeMode="contain" />
-                ) : (
-                  <Text style={styles.errorText}>Image introuvable</Text>
-                )}
-              </View>
-            </View>
-          )}
         </ScrollView>
       )}
     </SafeAreaView>
+
+      {/* Fullscreen Image Viewer Modal */}
+      <Modal
+        visible={viewerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeImageViewer}
+        statusBarTranslucent
+      >
+        <View style={styles.modalContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="#000000" />
+          
+          {/* Top Bar */}
+          <View style={styles.viewerTopBar}>
+            <TouchableOpacity 
+              style={styles.viewerCloseButton} 
+              onPress={closeImageViewer}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.viewerCloseText}>✕</Text>
+            </TouchableOpacity>
+            
+            <Text style={styles.viewerTitleText}>Photo du Compteur</Text>
+            
+            <TouchableOpacity 
+              style={[styles.viewerShareButton, isSharing && styles.viewerShareButtonDisabled]} 
+              onPress={() => photos[viewerIndex] && handleShare(photos[viewerIndex])}
+              disabled={isSharing}
+              activeOpacity={0.7}
+            >
+              {isSharing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.viewerShareText}>↗</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          {/* Image Container with Zoom */}
+          <View style={styles.viewerImageContainer} {...panResponder.panHandlers}>
+            {photos[viewerIndex] ? (
+              <Animated.Image 
+                source={{ uri: photos[viewerIndex] }} 
+                style={[
+                  styles.viewerFullImage,
+                  {
+                    transform: [
+                      { scale },
+                      { translateX },
+                      { translateY },
+                    ],
+                  },
+                ]} 
+                resizeMode="contain" 
+              />
+            ) : (
+              <View style={styles.viewerErrorContainer}>
+                <Text style={styles.viewerErrorIcon}>📷</Text>
+                <Text style={styles.viewerErrorText}>Image introuvable</Text>
+              </View>
+            )}
+          </View>
+          
+          {/* Bottom Hint */}
+          <View style={styles.viewerBottomBar}>
+            <Text style={styles.viewerHintText}>Double-tap pour zoomer • Glisser pour déplacer</Text>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -703,45 +860,87 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  viewerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  viewerTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  viewerCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  viewerContent: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  viewerImage: {
-    width: '100%',
-    height: '100%',
-  },
-  viewerClose: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    zIndex: 10,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
+  viewerCloseText: {
     color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  viewerTitleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  viewerShareButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewerShareButtonDisabled: {
+    opacity: 0.5,
+  },
+  viewerShareText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '600',
+  },
+  viewerImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+  },
+  viewerFullImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.7,
+  },
+  viewerErrorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerErrorIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  viewerErrorText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  viewerBottomBar: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    alignItems: 'center',
+  },
+  viewerHintText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 13,
+    fontWeight: '500',
   },
   errorText: {
     color: '#DC2626',
