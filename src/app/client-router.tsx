@@ -10,12 +10,36 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getClientBillingInfo, Client } from '../services/mockDataService';
+
+interface Stats {
+  monthlyConsumption: number;
+  totalBills: number;
+  paidBills: number;
+  unpaidBills: number;
+}
+
+interface CustomerData {
+  clientId?: string;
+  customerCode?: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  phone?: string;
+  phoneNumber?: string;
+  stats?: Stats;
+}
 
 const ClientRouterScreen = () => {
   const router = useRouter();
   const { clientId } = useLocalSearchParams();
-  const [clientProfile, setClientProfile] = useState<Client | null>(null);
+  const [clientProfile, setClientProfile] = useState<CustomerData | null>(null);
+  const [stats, setStats] = useState<Stats>({
+    monthlyConsumption: 0,
+    totalBills: 0,
+    paidBills: 0,
+    unpaidBills: 0,
+  });
 
   useEffect(() => {
     const loadClientData = async () => {
@@ -24,6 +48,11 @@ const ClientRouterScreen = () => {
         if (storedData) {
           const profile = JSON.parse(storedData);
           setClientProfile(profile);
+          
+          // Use stats from stored data (fetched during customer search)
+          if (profile.stats) {
+            setStats(profile.stats);
+          }
         }
       } catch (error) {
         console.error('Error loading client data:', error);
@@ -33,24 +62,17 @@ const ClientRouterScreen = () => {
   }, [clientId]);
 
   const handleCheckPaymentStatus = async () => {
-    try {
-      const idToUse = clientProfile?.clientId || (clientId as string);
-      const billingInfo = await getClientBillingInfo(idToUse);
-      if (billingInfo) {
-        router.push({
-          pathname: '/billing-info',
-          params: { clientData: JSON.stringify(billingInfo) },
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching billing info:', error);
-    }
+    const idToUse = clientProfile?.clientId || clientProfile?.customerCode || (clientId as string);
+    router.push({
+      pathname: '/billing-info',
+      params: { clientId: idToUse },
+    });
   };
 
   const handleComplain = () => {
     router.push({
       pathname: '/complaint-form',
-      params: { clientId: clientProfile?.clientId || (clientId as string) },
+      params: { clientId: clientProfile?.clientId || clientProfile?.customerCode || (clientId as string) },
     });
   };
 
@@ -58,19 +80,30 @@ const ClientRouterScreen = () => {
     router.back();
   };
 
-  const displayName = clientProfile?.name?.split(' ')[0] || 'Client';
-  const initials = clientProfile?.name
-    ?.split(' ')
+  // Build display name from available fields
+  const getDisplayName = () => {
+    if (clientProfile?.name) return clientProfile.name;
+    if (clientProfile?.firstName || clientProfile?.lastName) {
+      return `${clientProfile.firstName || ''} ${clientProfile.lastName || ''}`.trim();
+    }
+    return 'Client';
+  };
+
+  const fullName = getDisplayName();
+  const displayName = fullName.split(' ')[0] || 'Client';
+  const initials = fullName
+    .split(' ')
     .map((n) => n[0])
     .join('')
     .substring(0, 2)
     .toUpperCase() || 'CL';
 
+  const displayClientId = clientProfile?.clientId || clientProfile?.customerCode || (clientId as string);
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
           <Text style={styles.backArrow}>←</Text>
@@ -84,15 +117,14 @@ const ClientRouterScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Client Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{clientProfile?.name || 'Client'}</Text>
-              <Text style={styles.profileId}>{clientId}</Text>
+              <Text style={styles.profileName}>{fullName}</Text>
+              <Text style={styles.profileId}>{displayClientId}</Text>
             </View>
           </View>
           {clientProfile?.address && (
@@ -103,15 +135,12 @@ const ClientRouterScreen = () => {
           )}
         </View>
 
-        {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeTitle}>Bonjour, {displayName} 👋</Text>
           <Text style={styles.welcomeSubtitle}>Que souhaitez-vous faire aujourd'hui ?</Text>
         </View>
 
-        {/* Action Cards */}
         <View style={styles.actionsContainer}>
-          {/* Payment Status Card */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={handleCheckPaymentStatus}
@@ -131,7 +160,6 @@ const ClientRouterScreen = () => {
             </View>
           </TouchableOpacity>
 
-          {/* Complaint Card */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={handleComplain}
@@ -151,7 +179,6 @@ const ClientRouterScreen = () => {
             </View>
           </TouchableOpacity>
 
-          {/* Consumption Card */}
           <TouchableOpacity
             style={styles.actionCard}
             onPress={handleCheckPaymentStatus}
@@ -172,23 +199,22 @@ const ClientRouterScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Stats */}
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Aperçu rapide</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Text style={styles.statIcon}>💧</Text>
-              <Text style={styles.statValue}>--</Text>
+              <Text style={styles.statValue}>{stats.monthlyConsumption}</Text>
               <Text style={styles.statLabel}>m³ ce mois</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statIcon}>📄</Text>
-              <Text style={styles.statValue}>--</Text>
+              <Text style={styles.statValue}>{stats.totalBills}</Text>
               <Text style={styles.statLabel}>Factures</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statIcon}>✅</Text>
-              <Text style={styles.statValue}>--</Text>
+              <Text style={styles.statValue}>{stats.paidBills}</Text>
               <Text style={styles.statLabel}>Payées</Text>
             </View>
           </View>

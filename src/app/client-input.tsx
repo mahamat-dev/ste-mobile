@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { getClientProfile } from '../services/mockDataService';
 import { customerApi } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -39,27 +38,9 @@ const ClientInputScreen = () => {
     const trimmedPhone = phoneNumber.trim();
 
     try {
-      let customerData = null;
-
-      try {
-        const response = await customerApi.searchByCode(trimmedId, trimmedPhone || undefined);
-        if (response.success && response.data) {
-          customerData = response.data;
-        }
-      } catch (apiError) {
-        console.log('API search failed, falling back to mock data', apiError);
-        const profile = await getClientProfile(trimmedId);
-        if (profile) {
-          if (trimmedPhone && profile.phoneNumber && !profile.phoneNumber.includes(trimmedPhone)) {
-            customerData = null;
-          } else {
-            customerData = profile;
-          }
-        }
-      }
-
-      if (customerData) {
-        await AsyncStorage.setItem('customer_data', JSON.stringify(customerData));
+      const response = await customerApi.searchByCode(trimmedId, trimmedPhone || undefined);
+      if (response.success && response.data) {
+        await AsyncStorage.setItem('customer_data', JSON.stringify(response.data));
         router.push({
           pathname: '/client-router',
           params: { clientId: trimmedId },
@@ -71,8 +52,11 @@ const ClientInputScreen = () => {
           [{ text: 'Réessayer' }]
         );
       }
-    } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.');
+    } catch (error: any) {
+      Alert.alert(
+        'Erreur',
+        error?.message || 'Une erreur est survenue. Veuillez réessayer.'
+      );
     } finally {
       setIsLoading(false);
     }

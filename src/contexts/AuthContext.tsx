@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { authApi, getStoredUser, clearAuthData } from '../services/api';
+import { authApi, getStoredUser, clearAuthData, complaintsApi } from '../services/api';
 
 interface User {
   id: number;
@@ -50,6 +50,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const data = await authApi.login(email, password);
       setUser(data.user);
+      
+      // Sync any locally stored complaints after successful login
+      try {
+        const syncResult = await complaintsApi.syncLocalComplaints();
+        if (syncResult.synced > 0) {
+          console.log(`Synced ${syncResult.synced} local complaints to server`);
+        }
+      } catch (syncError) {
+        console.warn('Failed to sync local complaints:', syncError);
+      }
     } catch (error) {
       throw error;
     }

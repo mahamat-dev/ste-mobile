@@ -448,6 +448,163 @@ export const meterApi = {
   },
 };
 
+// Complaints API endpoints
+export const complaintsApi = {
+  // Create a new complaint
+  create: async (data: {
+    customerId: string;
+    subject: string;
+    category: 'General' | 'Technical' | 'Billing' | 'Maintenance';
+    description?: string;
+    priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+    phone?: string;
+  }) => {
+    return await apiRequest('/complaints', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get complaints list (for viewing history)
+  getAll: async (page: number = 1, limit: number = 50) => {
+    return await apiRequest(`/complaints?page=${page}&limit=${limit}`, {
+      method: 'GET',
+    });
+  },
+
+  // Get a single complaint by ID
+  getById: async (id: number) => {
+    return await apiRequest(`/complaints/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  // Sync local complaints to server (call after agent login)
+  syncLocalComplaints: async () => {
+    try {
+      const token = await getToken();
+      if (!token) return { synced: 0, failed: 0 };
+
+      const localData = await AsyncStorage.getItem('local_complaints');
+      if (!localData) return { synced: 0, failed: 0 };
+
+      const complaints = JSON.parse(localData);
+      if (!Array.isArray(complaints) || complaints.length === 0) {
+        return { synced: 0, failed: 0 };
+      }
+
+      let synced = 0;
+      let failed = 0;
+      const remaining: any[] = [];
+
+      for (const complaint of complaints) {
+        try {
+          await apiRequest('/complaints', {
+            method: 'POST',
+            body: JSON.stringify({
+              customerId: complaint.customerId,
+              subject: complaint.subject,
+              category: complaint.category,
+              description: complaint.description,
+              priority: complaint.priority,
+              phone: complaint.phone,
+            }),
+          });
+          synced++;
+        } catch (err) {
+          console.error('Failed to sync complaint:', err);
+          remaining.push(complaint);
+          failed++;
+        }
+      }
+
+      // Update local storage with remaining (failed) complaints
+      if (remaining.length > 0) {
+        await AsyncStorage.setItem('local_complaints', JSON.stringify(remaining));
+      } else {
+        await AsyncStorage.removeItem('local_complaints');
+      }
+
+      return { synced, failed };
+    } catch (error) {
+      console.error('Error syncing local complaints:', error);
+      return { synced: 0, failed: 0 };
+    }
+  },
+
+  // Get count of pending local complaints
+  getPendingCount: async () => {
+    try {
+      const localData = await AsyncStorage.getItem('local_complaints');
+      if (!localData) return 0;
+      const complaints = JSON.parse(localData);
+      return Array.isArray(complaints) ? complaints.length : 0;
+    } catch {
+      return 0;
+    }
+  },
+};
+
+// Billing API endpoints
+export const billingApi = {
+  // Get bills by customer code (unpaid bills)
+  getByCustomerCode: async (customerCode: string) => {
+    return await apiRequest(`/bills/getBillsByCustomerId/${customerCode}?all=true`, {
+      method: 'GET',
+    });
+  },
+
+  // Get customer stats (consumption, bills count, paid count)
+  getCustomerStats: async (customerCode: string) => {
+    try {
+      // Get all bills for this customer
+      const billsResp = await apiRequest(`/bills/getBillsByCustomerId/${customerCode}?all=true`, {
+        method: 'GET',
+      });
+
+      const bills = billsResp?.data?.data || billsResp?.data || [];
+      const billsArray = Array.isArray(bills) ? bills : [];
+
+      // Calculate stats
+      const totalBills = billsArray.length;
+      const paidBills = billsArray.filter((b: any) => b.status === 'PAID').length;
+      
+      // Get current month consumption from latest bill
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      const currentMonthBill = billsArray.find((b: any) => {
+        const billDate = new Date(b.createdAt || b.billingPeriod);
+        return billDate.getMonth() === currentMonth && billDate.getFullYear() === currentYear;
+      });
+
+      const monthlyConsumption = currentMonthBill?.consumption || 0;
+
+      return {
+        success: true,
+        data: {
+          monthlyConsumption,
+          totalBills,
+          paidBills,
+          unpaidBills: totalBills - paidBills,
+        },
+      };
+    } catch (error: any) {
+      console.warn('Error fetching customer stats:', error?.message);
+      return {
+        success: false,
+        data: {
+          monthlyConsumption: 0,
+          totalBills: 0,
+          paidBills: 0,
+          unpaidBills: 0,
+        },
+      };
+    }
+  },
+};
+
 // Customer API endpoints
 export const customerApi = {
   searchByCode: async (code: string, phone?: string) => {
@@ -466,14 +623,70 @@ export const customerApi = {
       // Filter client-side for the exact customer code match
       const match = response.data.data.find(
         (r: any) =>
-          r?.customer?.customerCode === code && (!phone || r?.customer?.phone === phone) // If phone provided, it must match
+          r?.customer?.customerCode === code && (!phone || r?.customer?.phone === phone)
       );
 
-      // If we found a match, return it formatted
+      // If we found a match, fetch additional data and return enriched customer
       if (match) {
+        const customer = match.customer;
+        const customerId = customer.customerId;
+        
+        // Try to fetch billing stats
+        let stats = {
+          monthlyConsumption: 0,
+          totalBills: 0,
+          paidBills: 0,
+          unpaidBills: 0,
+        };
+
+        try {
+          const billsResp = await apiRequest(`/bills/getBillsByCustomerId/${code}?all=true`, {
+            method: 'GET',
+          });
+          const bills = billsResp?.data?.data || billsResp?.data || [];
+          const billsArray = Array.isArray(bills) ? bills : [];
+          
+          const totalBills = billsArray.length;
+          const paidBills = billsArray.filter((b: any) => b.status === 'PAID').length;
+          
+          // Get current month consumption
+          const now = new Date();
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
+          
+          const currentMonthBill = billsArray.find((b: any) => {
+            const billDate = new Date(b.createdAt || b.billingPeriod);
+            return billDate.getMonth() === currentMonth && billDate.getFullYear() === currentYear;
+          });
+
+          stats = {
+            monthlyConsumption: currentMonthBill?.consumption || 0,
+            totalBills,
+            paidBills,
+            unpaidBills: totalBills - paidBills,
+          };
+        } catch (billErr) {
+          console.warn('Could not fetch billing stats:', billErr);
+        }
+
+        // Build address string from address object if available
+        let addressString = '';
+        if (match.customer?.address) {
+          const addr = match.customer.address;
+          addressString = [addr.area?.name, addr.center?.name, addr.city?.name]
+            .filter(Boolean)
+            .join(', ');
+        }
+
         return {
           success: true,
-          data: match.customer,
+          data: {
+            ...customer,
+            clientId: customer.customerCode,
+            name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
+            address: addressString || undefined,
+            stats,
+          },
         };
       }
     }

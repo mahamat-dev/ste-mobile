@@ -13,8 +13,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { complaintsApi, getToken } from '../services/api';
 
 type ComplaintType = 'billing' | 'service' | 'quality' | 'other';
+
+// Map frontend complaint types to backend categories
+const typeToCategory: Record<ComplaintType, 'Billing' | 'Technical' | 'Maintenance' | 'General'> = {
+  billing: 'Billing',
+  service: 'Technical',
+  quality: 'Maintenance',
+  other: 'General',
+};
 
 interface ComplaintOption {
   id: ComplaintType;
@@ -80,33 +89,78 @@ const ComplaintFormScreen = () => {
       return;
     }
 
+    if (!displayClientId) {
+      Alert.alert('Erreur', 'ID client manquant. Veuillez vous reconnecter.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Simulate API call with real data context
-      console.log('Submitting complaint for:', displayClientId, {
-        type: selectedType,
-        subject,
-        description,
-        contactPhone
+      // Check if user is authenticated (agent logged in)
+      const token = await getToken();
+      
+      if (!token) {
+        // No authentication - save complaint locally for later sync
+        const localComplaint = {
+          id: Date.now(),
+          customerId: displayClientId,
+          subject: subject.trim(),
+          category: typeToCategory[selectedType],
+          description: description.trim(),
+          priority: 'Medium',
+          phone: contactPhone.trim(),
+          status: 'pending_sync',
+          createdAt: new Date().toISOString(),
+        };
+        
+        // Get existing local complaints
+        const existingComplaints = await AsyncStorage.getItem('local_complaints');
+        const complaints = existingComplaints ? JSON.parse(existingComplaints) : [];
+        complaints.push(localComplaint);
+        await AsyncStorage.setItem('local_complaints', JSON.stringify(complaints));
+        
+        Alert.alert(
+          'Réclamation Enregistrée',
+          'Votre réclamation a été enregistrée localement. Elle sera synchronisée avec le serveur lorsqu\'un agent se connectera.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back()
+            }
+          ]
+        );
+        return;
+      }
+
+      const response = await complaintsApi.create({
+        customerId: displayClientId,
+        subject: subject.trim(),
+        category: typeToCategory[selectedType],
+        description: description.trim(),
+        priority: 'Medium',
+        phone: contactPhone.trim(),
       });
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      Alert.alert(
-        'Réclamation Envoyée',
-        'Votre réclamation a été enregistrée avec succès. Nous vous contacterons dans les plus brefs délais.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
-      );
-    } catch (error) {
+
+      if (response.success) {
+        Alert.alert(
+          'Réclamation Envoyée',
+          'Votre réclamation a été enregistrée avec succès. Nous vous contacterons dans les plus brefs délais.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back()
+            }
+          ]
+        );
+      } else {
+        throw new Error(response.message || 'Échec de l\'envoi');
+      }
+    } catch (error: any) {
+      console.error('Error submitting complaint:', error);
       Alert.alert(
         'Erreur',
-        'Une erreur est survenue lors de l\'envoi de votre réclamation. Veuillez réessayer.'
+        error?.message || 'Une erreur est survenue lors de l\'envoi de votre réclamation. Veuillez réessayer.'
       );
     } finally {
       setIsSubmitting(false);
