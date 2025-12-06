@@ -13,6 +13,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
 const BillDetailsScreen = () => {
   const router = useRouter();
   const { t } = useTranslation();
@@ -23,8 +26,113 @@ const BillDetailsScreen = () => {
 
   if (!bill) return null;
 
-  const handleDownload = () => {
-    Alert.alert(t('common.info'), t('dashboard.downloadNotAvailable'));
+  const handleDownload = async () => {
+    try {
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Helvetica', sans-serif; padding: 20px; color: #333; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .logo { font-size: 24px; font-weight: bold; color: #3B82F6; margin-bottom: 10px; }
+            .title { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+            .subtitle { font-size: 14px; color: #666; }
+            .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+            .section-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+            .label { font-weight: 500; color: #555; }
+            .value { font-weight: bold; }
+            .total { font-size: 18px; font-weight: bold; color: #3B82F6; margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px; }
+            .status { text-align: center; font-weight: bold; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+            .paid { background-color: #DCFCE7; color: #166534; }
+            .unpaid { background-color: #FEE2E2; color: #991B1B; }
+            .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #888; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">STE</div>
+            <div class="title">Facture d'Eau</div>
+            <div class="subtitle">Société Tchadienne des Eaux</div>
+          </div>
+
+          <div class="status ${bill.status === 'paid' ? 'paid' : 'unpaid'}">
+            ${bill.status === 'paid' ? 'PAYÉ / PAID' : 'IMPAYÉ / UNPAID'}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Informations Client</div>
+            <div class="row">
+              <span class="label">Nom Client:</span>
+              <span class="value">${customerName || 'N/A'}</span>
+            </div>
+            <div class="row">
+              <span class="label">Code Client:</span>
+              <span class="value">${bill.customerCode}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Détails de la Facture</div>
+            <div class="row">
+              <span class="label">Référence:</span>
+              <span class="value">${bill.reference}</span>
+            </div>
+            <div class="row">
+              <span class="label">Période:</span>
+              <span class="value">${bill.period}</span>
+            </div>
+            <div class="row">
+              <span class="label">Date d'émission:</span>
+              <span class="value">${new Date(bill.createdAt).toLocaleDateString()}</span>
+            </div>
+            ${bill.dueDate ? `
+            <div class="row">
+              <span class="label">Date d'échéance:</span>
+              <span class="value">${new Date(bill.dueDate).toLocaleDateString()}</span>
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Consommation</div>
+            <div class="row">
+              <span class="label">Consommation Totale:</span>
+              <span class="value">${bill.consumption} m³</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Paiement</div>
+            <div class="row">
+              <span class="label">Montant HT:</span>
+              <span class="value">${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA</span>
+            </div>
+            <div class="row">
+              <span class="label">TVA (0%):</span>
+              <span class="value">0 FCFA</span>
+            </div>
+            <div class="row total">
+              <span class="label">Total à Payer:</span>
+              <span class="value">${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Merci de votre confiance.</p>
+            <p>STE - Société Tchadienne des Eaux</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+    } catch (error) {
+      Alert.alert(t('common.error'), 'Impossible de générer le PDF');
+      console.error(error);
+    }
   };
 
   const DetailRow = ({ label, value, isTotal = false }: { label: string, value: string, isTotal?: boolean }) => (
