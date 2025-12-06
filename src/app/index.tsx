@@ -22,7 +22,7 @@ const SplashScreen = () => {
         if (isAuthenticated) {
           router.replace('/agent-dashboard');
         } else {
-          router.replace('/client-input');
+          router.replace('/agent-login');
         }
       }
     }, 2000);

@@ -32,7 +32,6 @@ const AgentDashboardScreen = () => {
   const [customerName, setCustomerName] = useState<string>('');
   const [stats, setStats] = useState({
     totalClients: 0,
-    pendingComplaints: 0,
     unpaidBills: 0,
     todayTasks: 0,
   });
@@ -55,7 +54,6 @@ const AgentDashboardScreen = () => {
 
       setStats({
         totalClients: 156,
-        pendingComplaints: 8,
         unpaidBills: 23,
         todayTasks: 12,
       });
@@ -202,11 +200,6 @@ const AgentDashboardScreen = () => {
             <Text style={styles.statLabel}>{t('dashboard.clients')}</Text>
             </View>
 
-          <View style={styles.statCard}>
-            <Text style={styles.statIcon}>⚠️</Text>
-            <Text style={styles.statValue}>{stats.pendingComplaints}</Text>
-            <Text style={styles.statLabel}>{t('dashboard.complaints')}</Text>
-          </View>
         </View>
 
         {/* Main Action */}

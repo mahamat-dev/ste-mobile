@@ -10,23 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Types for billing info
-export interface BillingInfo {
-  factureNo: string;
-  clientId: string;
-  consommationTotal: number;
-  moisFacturation: string;
-  amount: number;
-  dueDate: string;
-  status: 'paid' | 'unpaid';
-  paymentDate?: string;
-}
-
-// Helper functions
-const formatCurrency = (amount: number): string => `${amount.toFixed(2)} FCFA`;
-const getPaymentStatusColor = (status: 'paid' | 'unpaid'): string => status === 'paid' ? '#10B981' : '#EF4444';
-const getPaymentStatusText = (status: 'paid' | 'unpaid'): string => status === 'paid' ? 'Payé' : 'Impayé';
+import { BillingInfo, formatCurrency, formatConsumption, getPaymentStatusColor, getPaymentStatusText, getClientProfile } from '../services/mockDataService';
 
 const BillingInfoScreen = () => {
   const router = useRouter();
@@ -49,16 +33,19 @@ const BillingInfoScreen = () => {
 
     const loadProfile = async () => {
       try {
-        // Get name from stored session
+        // Try to get name from stored session first
         const stored = await AsyncStorage.getItem('customer_data');
         if (stored) {
             const data = JSON.parse(stored);
             // Verify it matches the current billing info
-            if ((data.clientId === billingInfo.clientId || data.customerCode === billingInfo.clientId) && mounted) {
+            if (data.clientId === billingInfo.clientId && mounted) {
                 setClientName(data.name);
                 return;
             }
         }
+
+        const profile = await getClientProfile(billingInfo.clientId);
+        if (mounted) setClientName(profile?.name ?? null);
       } catch (_) {
         // ignore errors
       }

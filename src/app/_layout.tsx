@@ -27,7 +27,6 @@ const RootLayout = () => {
         }}
       >
         <Stack.Screen name="index" />
-        <Stack.Screen name="client-input" />
         <Stack.Screen name="billing-info" />
       </Stack>
     </AuthProvider>

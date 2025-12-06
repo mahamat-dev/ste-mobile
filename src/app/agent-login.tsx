@@ -152,12 +152,6 @@ const AgentLoginScreen = () => {
             <Text style={styles.helpText}>Email: agent@example.com</Text>
             <Text style={styles.helpText}>{t('auth.password')}: agent123</Text>
           </View>
-
-          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-            <Text style={styles.backButtonText}>
-              {I18nManager.isRTL ? '→ ' : '← '}{t('auth.backToSearch')}
-            </Text>
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

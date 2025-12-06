@@ -36,8 +36,8 @@ const ProfileScreen = () => {
             } catch (error) {
               console.error('Logout error:', error);
             } finally {
-              // Navigate to client-input after logout
-              router.replace('/client-input');
+              // Navigate to agent-login after logout
+              router.replace('/agent-login');
             }
           },
         },

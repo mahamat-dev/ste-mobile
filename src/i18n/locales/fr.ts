@@ -14,7 +14,6 @@ export default {
     role: "AGENT",
     todayTasks: "Tâches du jour",
     clients: "Clients",
-    complaints: "Plaintes",
     quickAction: "Action Rapide",
     newReading: "Nouveau Relevé",
     recordIndex: "Enregistrer un index compteur",

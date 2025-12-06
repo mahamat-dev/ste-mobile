@@ -14,7 +14,6 @@ export default {
     role: "وكيل",
     todayTasks: "مهام اليوم",
     clients: "العملاء",
-    complaints: "الشكاوى",
     quickAction: "إجراء سريع",
     newReading: "قراءة جديدة",
     recordIndex: "تسجيل قراءة العداد",
