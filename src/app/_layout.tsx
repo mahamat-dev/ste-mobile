@@ -28,6 +28,8 @@ const RootLayout = () => {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="billing-info" />
+        <Stack.Screen name="client-bills" />
+        <Stack.Screen name="bill-details" />
       </Stack>
     </AuthProvider>
   );

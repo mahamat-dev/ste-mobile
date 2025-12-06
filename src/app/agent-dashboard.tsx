@@ -67,6 +67,10 @@ const AgentDashboardScreen = () => {
 
 
 
+  const handleCheckBills = () => {
+    router.push('/client-bills');
+  };
+
   const handleMeterReading = () => {
     router.push('/meter-reading');
   };
@@ -205,22 +209,41 @@ const AgentDashboardScreen = () => {
         {/* Main Action */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('dashboard.quickAction')}</Text>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={handleMeterReading}
-            activeOpacity={0.8}
-          >
-            <View style={styles.actionContent}>
-              <View style={styles.actionIconBox}>
-                <Text style={styles.actionIcon}>⚡️</Text>
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleMeterReading}
+              activeOpacity={0.8}
+            >
+              <View style={styles.actionContent}>
+                <View style={styles.actionIconBox}>
+                  <Text style={styles.actionIcon}>⚡️</Text>
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>{t('dashboard.newReading')}</Text>
+                  <Text style={styles.actionSubtitle}>{t('dashboard.recordIndex')}</Text>
+                </View>
+                <Text style={styles.actionArrow}>{I18nManager.isRTL ? '←' : '→'}</Text>
               </View>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>{t('dashboard.newReading')}</Text>
-                <Text style={styles.actionSubtitle}>{t('dashboard.recordIndex')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionCard, { marginTop: 12 }]}
+              onPress={handleCheckBills}
+              activeOpacity={0.8}
+            >
+              <View style={styles.actionContent}>
+                <View style={[styles.actionIconBox, { backgroundColor: '#E0F2FE' }]}>
+                  <Text style={styles.actionIcon}>💰</Text>
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>{t('dashboard.checkBills')}</Text>
+                  <Text style={styles.actionSubtitle}>{t('dashboard.checkBillsDesc')}</Text>
+                </View>
+                <Text style={styles.actionArrow}>{I18nManager.isRTL ? '←' : '→'}</Text>
               </View>
-              <Text style={styles.actionArrow}>{I18nManager.isRTL ? '←' : '→'}</Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search & History */}
@@ -487,8 +510,11 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontWeight: '600',
   },
+  actionsGrid: {
+    flexDirection: 'column',
+  },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 16,
