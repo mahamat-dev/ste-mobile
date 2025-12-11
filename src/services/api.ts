@@ -483,10 +483,47 @@ export const billingApi = {
 // Customer API endpoints
 export const customerApi = {
   searchByCode: async (code: string, phone?: string) => {
-    // Use the connection-request endpoint with pagination to get relations
+    // First try to use the direct meter-readings/customer endpoint with the ID
+    try {
+      const directResp = await apiRequest(`/meter-readings/customer/${code}`, { method: "GET" });
+      
+      if (directResp?.success && directResp?.data) {
+        const customerPayload = directResp.data as any;
+        const customerName = `${customerPayload?.firstName || ''} ${customerPayload?.lastName || ''}`.trim();
+        
+        // Build address string
+        let addressString = '';
+        if (customerPayload?.address) {
+          const addr = customerPayload.address;
+          addressString = [addr.streetName, addr.streetNumber, addr.city?.cityName]
+            .filter(Boolean)
+            .join(', ');
+        }
+
+        return {
+          success: true,
+          data: {
+            ...customerPayload,
+            clientId: customerPayload.customerCode || code,
+            name: customerName || 'Client',
+            address: addressString || undefined,
+            stats: {
+              monthlyConsumption: 0,
+              totalBills: 0,
+              paidBills: 0,
+              unpaidBills: 0,
+            },
+          },
+        };
+      }
+    } catch (err) {
+      // Fall back to connection-request search
+      console.warn('Direct customer lookup failed, trying connection-request');
+    }
+
+    // Fallback: Use the connection-request endpoint with pagination to get relations
     let endpoint = `/connection-request?page=1&limit=100`;
     if (phone) {
-      // If phone is provided, use search param
       endpoint += `&search=${encodeURIComponent(phone)}`;
     }
 
@@ -495,10 +532,11 @@ export const customerApi = {
     });
 
     if (response.success && response.data && Array.isArray(response.data.data)) {
-      // Filter client-side for the exact customer code match
+      // Filter client-side for the exact customer code or ID match
       const match = response.data.data.find(
         (r: any) =>
-          r?.customer?.customerCode === code && (!phone || r?.customer?.phone === phone)
+          (r?.customer?.customerCode === code || String(r?.customer?.customerId) === code) && 
+          (!phone || r?.customer?.phone === phone)
       );
 
       // If we found a match, fetch additional data and return enriched customer

@@ -164,9 +164,9 @@ const ClientBillsScreen = () => {
               style={styles.searchInput}
               value={customerCode}
               onChangeText={setCustomerCode}
-              placeholder="CUST-001"
+              placeholder={t('dashboard.customerCodePlaceholder')}
               placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
+              keyboardType="numeric"
             />
             <TouchableOpacity 
               style={[styles.searchButton, isLoading && styles.disabledButton]}
