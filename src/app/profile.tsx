@@ -14,6 +14,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
+import { Header, Avatar, Card } from '../components/ui';
 
 const ProfileScreen = () => {
   const router = useRouter();
@@ -36,7 +38,6 @@ const ProfileScreen = () => {
             } catch (error) {
               console.error('Logout error:', error);
             } finally {
-              // Navigate to agent-login after logout
               router.replace('/agent-login');
             }
           },
@@ -58,34 +59,30 @@ const ProfileScreen = () => {
   };
 
   const displayName = user?.name || 'Agent User';
-  const initials = displayName
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
+
+  const languages = [
+    { code: 'en', name: 'English', flag: '🇬🇧' },
+    { code: 'fr', name: 'Français', flag: '🇫🇷' },
+    { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backIcon}>{I18nManager.isRTL ? '→' : '←'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('profile.title')}</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <Header title={t('profile.title')} onBack={() => router.back()} />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        {/* Profile Info */}
-        <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>{initials}</Text>
+      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.profileBackground} />
+          <View style={styles.profileContent}>
+            <Avatar name={displayName} size="xl" />
+            <Text style={styles.userName}>{displayName}</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>{user?.role?.name || 'AGENT'}</Text>
+            </View>
           </View>
-          <Text style={styles.userName}>{displayName}</Text>
-          <Text style={styles.userRole}>{user?.role?.name || 'AGENT'}</Text>
         </View>
 
         {/* Account Details */}
@@ -93,18 +90,33 @@ const ProfileScreen = () => {
           <Text style={styles.sectionTitle}>{t('profile.accountInfo')}</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('auth.email')}</Text>
-              <Text style={styles.infoValue}>{user?.email || 'agent@example.com'}</Text>
+              <View style={styles.infoIconContainer}>
+                <Text style={styles.infoIcon}>✉️</Text>
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>{t('auth.email')}</Text>
+                <Text style={styles.infoValue}>{user?.email || 'agent@example.com'}</Text>
+              </View>
             </View>
             <View style={styles.divider} />
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('profile.role')}</Text>
-              <Text style={styles.infoValue}>{user?.role?.name || 'AGENT'}</Text>
+              <View style={styles.infoIconContainer}>
+                <Text style={styles.infoIcon}>👤</Text>
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>{t('profile.role')}</Text>
+                <Text style={styles.infoValue}>{user?.role?.name || 'AGENT'}</Text>
+              </View>
             </View>
             <View style={styles.divider} />
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('profile.agentId')}</Text>
-              <Text style={styles.infoValue}>{user?.id ? `#${user.id}` : 'N/A'}</Text>
+              <View style={styles.infoIconContainer}>
+                <Text style={styles.infoIcon}>🆔</Text>
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>{t('profile.agentId')}</Text>
+                <Text style={styles.infoValue}>{user?.id ? `#${user.id}` : 'N/A'}</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -115,34 +127,31 @@ const ProfileScreen = () => {
           <Text style={styles.sectionSubtitle}>{t('profile.selectLanguage')}</Text>
           
           <View style={styles.languageContainer}>
-            {['en', 'fr', 'ar'].map((lang) => (
+            {languages.map((lang) => (
               <TouchableOpacity 
-                key={lang} 
-                style={[
-                  styles.langOption, 
-                  currentLang === lang && styles.langOptionActive
-                ]}
-                onPress={() => handleLanguageChange(lang)}
+                key={lang.code} 
+                style={[styles.langOption, currentLang === lang.code && styles.langOptionActive]}
+                onPress={() => handleLanguageChange(lang.code)}
+                activeOpacity={0.7}
               >
-                <View style={styles.langRadio}>
-                  {currentLang === lang && <View style={styles.langRadioInner} />}
+                <Text style={styles.langFlag}>{lang.flag}</Text>
+                <Text style={[styles.langText, currentLang === lang.code && styles.langTextActive]}>{lang.name}</Text>
+                <View style={[styles.langRadio, currentLang === lang.code && styles.langRadioActive]}>
+                  {currentLang === lang.code && <View style={styles.langRadioInner} />}
                 </View>
-                <Text style={[
-                  styles.langText,
-                  currentLang === lang && styles.langTextActive
-                ]}>
-                  {lang === 'en' ? 'English' : lang === 'fr' ? 'Français' : 'العربية'}
-                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+          <Text style={styles.logoutIcon}>🚪</Text>
           <Text style={styles.logoutText}>{t('common.logout')}</Text>
         </TouchableOpacity>
 
+        {/* App Version */}
+        <Text style={styles.versionText}>STE Agent v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -151,184 +160,184 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  backIcon: {
-    fontSize: 18,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-  },
-  placeholder: {
-    width: 40,
+    backgroundColor: Colors.background.secondary,
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
   },
-  profileSection: {
-    alignItems: 'center',
-    marginBottom: 32,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 24,
+  profileCard: {
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius['2xl'],
+    marginBottom: Spacing['2xl'],
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
+    ...Shadows.lg,
   },
-  avatarContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
+  profileBackground: {
+    height: 80,
+    backgroundColor: Colors.primary[500],
+  },
+  profileContent: {
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    paddingBottom: Spacing['2xl'],
+    marginTop: -36,
   },
   userName: {
-    fontSize: 20,
+    fontSize: Typography.fontSize['2xl'],
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
+    color: Colors.text.primary,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  userRole: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
+  roleBadge: {
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
+  },
+  roleText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.primary[700],
     textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Spacing['2xl'],
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-    textAlign: 'left',
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
   },
   sectionSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 16,
-    textAlign: 'left',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.lg,
   },
   infoCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
+    borderColor: Colors.border.default,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
   infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  infoIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.neutral[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoIcon: {
+    fontSize: 20,
+  },
+  infoContent: {
+    flex: 1,
   },
   infoLabel: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
     fontWeight: '500',
+    marginBottom: 2,
   },
   infoValue: {
-    fontSize: 14,
-    color: '#0F172A',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
     fontWeight: '600',
   },
   divider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: Colors.border.light,
+    marginHorizontal: Spacing.lg,
   },
   languageContainer: {
-    gap: 12,
+    gap: Spacing.md,
   },
   langOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 2,
+    borderColor: Colors.border.default,
+    padding: Spacing.lg,
+    gap: Spacing.md,
   },
   langOptionActive: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
+    borderColor: Colors.primary[500],
+    backgroundColor: Colors.primary[50],
+  },
+  langFlag: {
+    fontSize: 24,
+  },
+  langText: {
+    flex: 1,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.text.primary,
+    fontWeight: '500',
+  },
+  langTextActive: {
+    color: Colors.primary[700],
+    fontWeight: '600',
   },
   langRadio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#CBD5E1',
-    marginRight: 12,
+    borderColor: Colors.border.dark,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  langRadioActive: {
+    borderColor: Colors.primary[500],
   },
   langRadioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#3B82F6',
-  },
-  langText: {
-    fontSize: 16,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  langTextActive: {
-    color: '#3B82F6', // Primary Blue
-    fontWeight: '600',
+    backgroundColor: Colors.primary[500],
   },
   logoutButton: {
-    marginTop: 24,
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    backgroundColor: Colors.error.main,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing['2xl'],
+    ...Shadows.md,
+  },
+  logoutIcon: {
+    fontSize: 20,
   },
   logoutText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.text.inverse,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
+  },
+  versionText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.disabled,
+    textAlign: 'center',
   },
 });
 

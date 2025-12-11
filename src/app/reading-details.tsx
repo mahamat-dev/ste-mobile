@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -12,27 +12,21 @@ import {
   Modal,
   Dimensions,
   Platform,
-  Animated,
-  PanResponder,
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { meterApi } from '../services/api';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
+import { Header, Avatar, Badge, StatCard, EmptyState } from '../components/ui';
 
-// Get base URL without /api suffix for image URLs
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 const BASE_URL = API_BASE_URL.replace(/\/api$/, '');
-
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function ReadingDetailsPage() {
   const router = useRouter();
-  const { 
-    meterId: meterIdParam, 
-    readingId: readingIdParam,
-    customerName: customerNameParam 
-  } = useLocalSearchParams<{ meterId?: string; readingId?: string; customerName?: string }>();
+  const { meterId: meterIdParam, readingId: readingIdParam, customerName: customerNameParam } = useLocalSearchParams<{ meterId?: string; readingId?: string; customerName?: string }>();
   const meterId = useMemo(() => (meterIdParam ? Number(meterIdParam) : NaN), [meterIdParam]);
   const readingId = useMemo(() => (readingIdParam ? Number(readingIdParam) : NaN), [readingIdParam]);
 
@@ -43,75 +37,12 @@ export default function ReadingDetailsPage() {
   const [viewerIndex, setViewerIndex] = useState<number>(0);
   const [isSharing, setIsSharing] = useState(false);
   
-  // Zoom state
-  const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const lastScale = useRef(1);
-  const lastTranslateX = useRef(0);
-  const lastTranslateY = useRef(0);
-  
-  // Double tap detection
-  const lastTap = useRef<number>(0);
-  
-  const resetZoom = () => {
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true }),
-      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
-      Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
-    ]).start();
-    lastScale.current = 1;
-    lastTranslateX.current = 0;
-    lastTranslateY.current = 0;
-  };
-  
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      // Double tap detected
-      if (lastScale.current > 1) {
-        resetZoom();
-      } else {
-        Animated.spring(scale, { toValue: 2.5, useNativeDriver: true }).start();
-        lastScale.current = 2.5;
-      }
-    }
-    lastTap.current = now;
-  };
-  
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        handleDoubleTap();
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (lastScale.current > 1) {
-          translateX.setValue(lastTranslateX.current + gestureState.dx);
-          translateY.setValue(lastTranslateY.current + gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        lastTranslateX.current += gestureState.dx;
-        lastTranslateY.current += gestureState.dy;
-      },
-    })
-  ).current;
-  
   const handleShare = async (imageUri: string) => {
     try {
       setIsSharing(true);
-      
-      await Share.share({
-        message: `Photo du compteur - Relevé #${readingId}`,
-        url: imageUri,
-      });
+      await Share.share({ message: `Photo du compteur - Relevé #${readingId}`, url: imageUri });
     } catch (error: any) {
-      if (error?.message !== 'User did not share') {
-        console.error('Share error:', error);
-        Alert.alert('Erreur', 'Impossible de partager l\'image.');
-      }
+      if (error?.message !== 'User did not share') Alert.alert('Erreur', 'Impossible de partager l\'image.');
     } finally {
       setIsSharing(false);
     }
@@ -119,54 +50,33 @@ export default function ReadingDetailsPage() {
   
   const openImageViewer = (index: number) => {
     setViewerIndex(index);
-    resetZoom();
     setViewerVisible(true);
   };
   
   const closeImageViewer = () => {
     setViewerVisible(false);
-    resetZoom();
   };
 
   useEffect(() => {
     const load = async () => {
       if (!meterId || Number.isNaN(meterId) || !readingId || Number.isNaN(readingId)) {
-        Alert.alert('Erreur', 'Paramètres de relevé invalides.', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
+        Alert.alert('Erreur', 'Paramètres de relevé invalides.', [{ text: 'OK', onPress: () => router.back() }]);
         setLoading(false);
         return;
       }
       try {
-        // Only fetch readings - meter data is included in the reading object
         const readingsRes = await meterApi.getReadings(meterId);
-        
-        // Extract readings from response
-        const readingsData = Array.isArray(readingsRes?.data?.data) 
-          ? readingsRes.data.data 
-          : Array.isArray(readingsRes?.data) 
-          ? readingsRes.data 
-          : [];
-        
-        // Try multiple ID fields
-        const found = readingsData.find((r: any) => {
-          const rId = r.meterReadingId || r.readingId || r.id;
-          return Number(rId) === Number(readingId);
-        });
+        const readingsData = Array.isArray(readingsRes?.data?.data) ? readingsRes.data.data : Array.isArray(readingsRes?.data) ? readingsRes.data : [];
+        const found = readingsData.find((r: any) => Number(r.meterReadingId || r.readingId || r.id) === Number(readingId));
         
         if (!found) {
-          Alert.alert('Erreur', 'Ce relevé n\'existe pas ou a été supprimé.', [
-            { text: 'OK', onPress: () => router.back() }
-          ]);
+          Alert.alert('Erreur', 'Ce relevé n\'existe pas ou a été supprimé.', [{ text: 'OK', onPress: () => router.back() }]);
         } else {
-          // Extract meter data from the reading object
           setMeter(found.meter || null);
           setReading(found);
         }
       } catch (e: any) {
-        Alert.alert('Erreur', e?.message || 'Impossible de charger les détails du relevé.', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
+        Alert.alert('Erreur', e?.message || 'Impossible de charger les détails du relevé.', [{ text: 'OK', onPress: () => router.back() }]);
       } finally {
         setLoading(false);
       }
@@ -177,24 +87,13 @@ export default function ReadingDetailsPage() {
   let photos: string[] = [];
   try {
     if (reading?.evidencePhotoUrl) {
-      // Single photo URL - prepend base URL if it's a relative path
       const photoUrl = reading.evidencePhotoUrl;
-      if (photoUrl.startsWith('http')) {
-        photos = [photoUrl];
-      } else {
-        photos = [`${BASE_URL}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`];
-      }
+      photos = [photoUrl.startsWith('http') ? photoUrl : `${BASE_URL}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`];
     } else if (reading?.photoUrls) {
-      // Multiple photos (JSON array)
       const parsed = JSON.parse(reading.photoUrls) || [];
-      photos = parsed.map((url: string) => {
-        if (url.startsWith('http')) return url;
-        return `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-      });
+      photos = parsed.map((url: string) => url.startsWith('http') ? url : `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`);
     }
-  } catch {
-    photos = [];
-  }
+  } catch { photos = []; }
   
   const status = String(reading?.status || '').toLowerCase();
   const isApproved = status === 'approved';
@@ -205,318 +104,175 @@ export default function ReadingDetailsPage() {
   const previousValue = reading?.previousIndex ?? 0;
   const consumption = reading?.consumption ?? Math.max(0, indexValue - previousValue);
 
+  const statusVariant = isApproved ? 'success' : isRejected ? 'error' : 'warning';
+  const statusText = isApproved ? 'Approuvé' : isPending ? 'En attente' : isRejected ? 'Rejeté' : reading?.status;
+  const statusIcon = isApproved ? '✓' : isPending ? '⏱' : isRejected ? '✕' : '•';
+
   return (
     <>
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle={viewerVisible ? "light-content" : "dark-content"} backgroundColor={viewerVisible ? "#000000" : "#FFFFFF"} />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Détails du Relevé</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle={viewerVisible ? "light-content" : "dark-content"} backgroundColor={viewerVisible ? "#000000" : Colors.background.primary} />
+        
+        <Header title="Détails du Relevé" onBack={() => router.back()} />
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
-      ) : !reading ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.emptyStateIcon}>📊</Text>
-          <Text style={styles.emptyStateTitle}>Relevé introuvable</Text>
-          <Text style={styles.emptyStateText}>Ce relevé n'existe pas ou a été supprimé.</Text>
-        </View>
-      ) : (
-        <ScrollView 
-          style={styles.content} 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Status Badge */}
-          <View style={styles.section}>
-            <View style={[
-              styles.statusCard,
-              isApproved && styles.statusCardSuccess,
-              isPending && styles.statusCardPending,
-              isRejected && styles.statusCardRejected
-            ]}>
-              <Text style={styles.statusIcon}>
-                {isApproved ? '✓' : isPending ? '⏱' : isRejected ? '✕' : '•'}
-              </Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color={Colors.primary[500]} />
+              <Text style={styles.loadingText}>Chargement...</Text>
+            </View>
+          </View>
+        ) : !reading ? (
+          <View style={styles.loadingContainer}>
+            <EmptyState icon="📊" title="Relevé introuvable" description="Ce relevé n'existe pas ou a été supprimé." />
+          </View>
+        ) : (
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            {/* Status Banner */}
+            <View style={[styles.statusBanner, isApproved && styles.statusBannerSuccess, isPending && styles.statusBannerPending, isRejected && styles.statusBannerError]}>
+              <Text style={styles.statusIcon}>{statusIcon}</Text>
               <View style={styles.statusInfo}>
                 <Text style={styles.statusLabel}>Statut du relevé</Text>
-                <Text style={[
-                  styles.statusValue,
-                  isApproved && styles.statusValueSuccess,
-                  isPending && styles.statusValuePending,
-                  isRejected && styles.statusValueRejected
-                ]}>
-                  {isApproved ? 'Approuvé' : isPending ? 'En attente' : isRejected ? 'Rejeté' : reading.status}
-                </Text>
+                <Text style={[styles.statusValue, isApproved && styles.statusValueSuccess, isPending && styles.statusValuePending, isRejected && styles.statusValueError]}>{statusText}</Text>
               </View>
             </View>
-          </View>
 
-          {/* Reading Stats */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informations du Relevé</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statIcon}>📈</Text>
-                <Text style={styles.statValue}>{indexValue}</Text>
-                <Text style={styles.statLabel}>Index Actuel</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statIcon}>📊</Text>
-                <Text style={styles.statValue}>{previousValue}</Text>
-                <Text style={styles.statLabel}>Index Préc.</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statIcon}>💧</Text>
-                <Text style={styles.statValue}>{consumption}</Text>
-                <Text style={styles.statLabel}>Consommation</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Date & Time */}
-          <View style={styles.section}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoIcon}>📅</Text>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Date du relevé</Text>
-                  <Text style={styles.infoValue}>
-                    {reading.readingDate 
-                      ? new Date(reading.readingDate).toLocaleDateString('fr-FR', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })
-                      : '—'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoIcon}>🕐</Text>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Heure</Text>
-                  <Text style={styles.infoValue}>
-                    {reading.readingDate 
-                      ? new Date(reading.readingDate).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : '—'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Client Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informations Client</Text>
-            <View style={styles.clientCard}>
-              <View style={styles.clientHeader}>
-                <View style={styles.avatarContainer}>
-                  <Text style={styles.avatarText}>
-                    {customerNameParam 
-                      ? customerNameParam.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-                      : (meter?.customer?.firstName?.[0] || '') + (meter?.customer?.lastName?.[0] || 'CL')}
-                  </Text>
-                </View>
-                <View style={styles.clientInfo}>
-                  <Text style={styles.clientName}>
-                    {customerNameParam || 
-                     (meter?.customer?.firstName && meter?.customer?.lastName 
-                       ? `${meter.customer.firstName} ${meter.customer.lastName}` 
-                       : meter?.customer?.name || '—')}
-                  </Text>
-                  <Text style={styles.clientDetail}>
-                    {meter?.customer?.phone || meter?.customer?.phoneNumber || 'Téléphone non disponible'}
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.divider} />
-              
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Compteur</Text>
-                <Text style={styles.detailValue}>{meter?.meterNumber || '—'}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Code Client</Text>
-                <Text style={styles.detailValue}>{meter?.customer?.customerCode || '—'}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Adresse</Text>
-                <Text style={styles.detailValue}>
-                  {meter?.customer?.address 
-                    ? `${meter.customer.address.streetName || ''} ${meter.customer.address.streetNumber || ''}, ${meter.customer.address.city?.cityName || ''}`.trim()
-                    : '—'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Agent Information */}
-          {reading?.agent && (
+            {/* Reading Stats */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Agent Releveur</Text>
-              <View style={styles.agentCard}>
-                <View style={styles.agentHeader}>
-                  <View style={styles.agentAvatarContainer}>
-                    <Text style={styles.agentAvatarText}>
-                      {(reading.agent.firstName?.[0] || '') + (reading.agent.lastName?.[0] || '')}
-                    </Text>
+              <Text style={styles.sectionTitle}>Informations du Relevé</Text>
+              <View style={styles.statsGrid}>
+                <StatCard icon="📈" value={indexValue} label="Index Actuel" variant="primary" />
+                <StatCard icon="📊" value={previousValue} label="Index Préc." />
+                <StatCard icon="💧" value={consumption} label="Consommation" variant="success" />
+              </View>
+            </View>
+
+            {/* Date & Time */}
+            <View style={styles.section}>
+              <View style={styles.infoCard}>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoIcon}>📅</Text>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Date du relevé</Text>
+                    <Text style={styles.infoValue}>{reading.readingDate ? new Date(reading.readingDate).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</Text>
                   </View>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoIcon}>🕐</Text>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Heure</Text>
+                    <Text style={styles.infoValue}>{reading.readingDate ? new Date(reading.readingDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Client Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Informations Client</Text>
+              <View style={styles.clientCard}>
+                <View style={styles.clientHeader}>
+                  <Avatar name={customerNameParam || meter?.customer?.firstName || 'CL'} size="lg" />
+                  <View style={styles.clientInfo}>
+                    <Text style={styles.clientName}>{customerNameParam || (meter?.customer?.firstName && meter?.customer?.lastName ? `${meter.customer.firstName} ${meter.customer.lastName}` : '—')}</Text>
+                    <Text style={styles.clientDetail}>{meter?.customer?.phone || meter?.customer?.phoneNumber || 'Téléphone non disponible'}</Text>
+                  </View>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.detailRow}><Text style={styles.detailLabel}>Compteur</Text><Text style={styles.detailValue}>{meter?.meterNumber || '—'}</Text></View>
+                <View style={styles.detailRow}><Text style={styles.detailLabel}>Code Client</Text><Text style={styles.detailValue}>{meter?.customer?.customerCode || '—'}</Text></View>
+                <View style={styles.detailRow}><Text style={styles.detailLabel}>Adresse</Text><Text style={styles.detailValue}>{meter?.customer?.address ? `${meter.customer.address.streetName || ''} ${meter.customer.address.streetNumber || ''}, ${meter.customer.address.city?.cityName || ''}`.trim() : '—'}</Text></View>
+              </View>
+            </View>
+
+            {/* Agent Information */}
+            {reading?.agent && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Agent Releveur</Text>
+                <View style={styles.agentCard}>
+                  <Avatar name={`${reading.agent.firstName || ''} ${reading.agent.lastName || ''}`} size="md" color={Colors.success.main} />
                   <View style={styles.agentInfo}>
-                    <Text style={styles.agentName}>
-                      {reading.agent.firstName} {reading.agent.lastName}
-                    </Text>
-                    <Text style={styles.agentDetail}>
-                      {reading.agent.email || '—'}
-                    </Text>
+                    <Text style={styles.agentName}>{reading.agent.firstName} {reading.agent.lastName}</Text>
+                    <Text style={styles.agentDetail}>{reading.agent.email || '—'}</Text>
                   </View>
                 </View>
-              </View>
-            </View>
-          )}
-
-          {/* Access Reason */}
-          {reading?.accessReason && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Accès au Compteur</Text>
-              <View style={styles.accessCard}>
-                <Text style={styles.accessIcon}>
-                  {reading.accessReason === 'Accessed' ? '✓' : '🚪'}
-                </Text>
-                <Text style={styles.accessText}>
-                  {reading.accessReason === 'Accessed' 
-                    ? 'Compteur accessible' 
-                    : reading.accessReason === 'Door_Closed'
-                    ? 'Porte fermée / Compteur inaccessible'
-                    : reading.accessReason}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* Location */}
-          {(reading?.longitude || reading?.latitude) && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Localisation</Text>
-              <View style={styles.locationCard}>
-                <Text style={styles.locationIcon}>📍</Text>
-                <View style={styles.locationInfo}>
-                  <Text style={styles.locationLabel}>Coordonnées GPS</Text>
-                  <Text style={styles.locationValue}>
-                    Lat: {reading.latitude || '—'} | Long: {reading.longitude || '—'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Comments */}
-          {(reading?.comments || reading?.notes) && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Commentaires</Text>
-              <View style={styles.commentsCard}>
-                <Text style={styles.commentsText}>{reading.comments || reading.notes}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Photos */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photo du Compteur</Text>
-            {photos.length === 0 ? (
-              <View style={styles.emptyPhotoCard}>
-                <Text style={styles.emptyPhotoIcon}>📷</Text>
-                <Text style={styles.emptyPhotoText}>Aucune photo disponible</Text>
-              </View>
-            ) : (
-              <View style={styles.photoGrid}>
-                {photos.map((uri, i) => (
-                  <TouchableOpacity 
-                    key={`${uri}-${i}`} 
-                    style={styles.photoContainer}
-                    onPress={() => openImageViewer(i)}
-                  >
-                    <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
-                    <View style={styles.photoOverlay}>
-                      <Text style={styles.photoOverlayText}>👁 Voir</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
               </View>
             )}
-          </View>
-        </ScrollView>
-      )}
-    </SafeAreaView>
+
+            {/* Access Reason */}
+            {reading?.accessReason && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Accès au Compteur</Text>
+                <View style={styles.accessCard}>
+                  <Text style={styles.accessIcon}>{reading.accessReason === 'Accessed' ? '✓' : '🚪'}</Text>
+                  <Text style={styles.accessText}>{reading.accessReason === 'Accessed' ? 'Compteur accessible' : reading.accessReason === 'Door_Closed' ? 'Porte fermée / Compteur inaccessible' : reading.accessReason}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Location */}
+            {(reading?.longitude || reading?.latitude) && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Localisation</Text>
+                <View style={styles.locationCard}>
+                  <Text style={styles.locationIcon}>📍</Text>
+                  <View style={styles.locationInfo}>
+                    <Text style={styles.locationLabel}>Coordonnées GPS</Text>
+                    <Text style={styles.locationValue}>Lat: {reading.latitude || '—'} | Long: {reading.longitude || '—'}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Comments */}
+            {(reading?.comments || reading?.notes) && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Commentaires</Text>
+                <View style={styles.commentsCard}>
+                  <Text style={styles.commentsText}>{reading.comments || reading.notes}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Photos */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Photo du Compteur</Text>
+              {photos.length === 0 ? (
+                <EmptyState icon="📷" title="Aucune photo" description="Aucune photo disponible pour ce relevé." />
+              ) : (
+                <View style={styles.photoGrid}>
+                  {photos.map((uri, i) => (
+                    <TouchableOpacity key={`${uri}-${i}`} style={styles.photoContainer} onPress={() => openImageViewer(i)} activeOpacity={0.8}>
+                      <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
+                      <View style={styles.photoOverlay}>
+                        <Text style={styles.photoOverlayText}>👁 Voir</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
 
       {/* Fullscreen Image Viewer Modal */}
-      <Modal
-        visible={viewerVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closeImageViewer}
-        statusBarTranslucent
-      >
+      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={closeImageViewer} statusBarTranslucent>
         <View style={styles.modalContainer}>
           <StatusBar barStyle="light-content" backgroundColor="#000000" />
-          
-          {/* Top Bar */}
           <View style={styles.viewerTopBar}>
-            <TouchableOpacity 
-              style={styles.viewerCloseButton} 
-              onPress={closeImageViewer}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.viewerCloseButton} onPress={closeImageViewer} activeOpacity={0.7}>
               <Text style={styles.viewerCloseText}>✕</Text>
             </TouchableOpacity>
-            
             <Text style={styles.viewerTitleText}>Photo du Compteur</Text>
-            
-            <TouchableOpacity 
-              style={[styles.viewerShareButton, isSharing && styles.viewerShareButtonDisabled]} 
-              onPress={() => photos[viewerIndex] && handleShare(photos[viewerIndex])}
-              disabled={isSharing}
-              activeOpacity={0.7}
-            >
-              {isSharing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.viewerShareText}>↗</Text>
-              )}
+            <TouchableOpacity style={[styles.viewerShareButton, isSharing && styles.viewerShareButtonDisabled]} onPress={() => photos[viewerIndex] && handleShare(photos[viewerIndex])} disabled={isSharing} activeOpacity={0.7}>
+              {isSharing ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.viewerShareText}>↗</Text>}
             </TouchableOpacity>
           </View>
-          
-          {/* Image Container with Zoom */}
-          <View style={styles.viewerImageContainer} {...panResponder.panHandlers}>
+          <View style={styles.viewerImageContainer}>
             {photos[viewerIndex] ? (
-              <Animated.Image 
-                source={{ uri: photos[viewerIndex] }} 
-                style={[
-                  styles.viewerFullImage,
-                  {
-                    transform: [
-                      { scale },
-                      { translateX },
-                      { translateY },
-                    ],
-                  },
-                ]} 
-                resizeMode="contain" 
-              />
+              <Image source={{ uri: photos[viewerIndex] }} style={styles.viewerFullImage} resizeMode="contain" />
             ) : (
               <View style={styles.viewerErrorContainer}>
                 <Text style={styles.viewerErrorIcon}>📷</Text>
@@ -524,10 +280,8 @@ export default function ReadingDetailsPage() {
               </View>
             )}
           </View>
-          
-          {/* Bottom Hint */}
           <View style={styles.viewerBottomBar}>
-            <Text style={styles.viewerHintText}>Double-tap pour zoomer • Glisser pour déplacer</Text>
+            <Text style={styles.viewerHintText}>Appuyez sur ✕ pour fermer</Text>
           </View>
         </View>
       </Modal>
@@ -535,296 +289,276 @@ export default function ReadingDetailsPage() {
   );
 }
 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  backArrow: {
-    fontSize: 18,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-  },
-  placeholder: {
-    width: 40,
+    backgroundColor: Colors.background.primary,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    padding: Spacing['2xl'],
+  },
+  loadingCard: {
+    backgroundColor: Colors.background.primary,
+    padding: Spacing['3xl'],
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    ...Shadows.lg,
   },
   loadingText: {
-    marginTop: 16,
-    color: '#64748B',
-    fontSize: 16,
+    marginTop: Spacing.lg,
+    color: Colors.text.secondary,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '500',
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Spacing['2xl'],
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 16,
-    textAlign: 'left',
+    color: Colors.text.primary,
+    marginBottom: Spacing.lg,
   },
-  statusCard: {
+  statusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 2,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
+    marginBottom: Spacing['2xl'],
+    gap: Spacing.lg,
   },
-  statusCardSuccess: {
-    backgroundColor: '#F0FDF4',
+  statusBannerSuccess: {
+    backgroundColor: Colors.success.light,
     borderColor: '#86EFAC',
   },
-  statusCardPending: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FED7AA',
+  statusBannerPending: {
+    backgroundColor: Colors.warning.light,
+    borderColor: '#FDE68A',
   },
-  statusCardRejected: {
-    backgroundColor: '#FEE2E2',
+  statusBannerError: {
+    backgroundColor: Colors.error.light,
     borderColor: '#FCA5A5',
   },
   statusIcon: {
     fontSize: 32,
-    marginRight: 16,
   },
   statusInfo: {
     flex: 1,
   },
   statusLabel: {
-    fontSize: 12,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.xs,
   },
   statusValue: {
-    fontSize: 18,
+    fontSize: Typography.fontSize.xl,
     fontWeight: '700',
-    color: '#0F172A',
+    color: Colors.text.primary,
   },
   statusValueSuccess: {
-    color: '#166534',
+    color: Colors.success.text,
   },
   statusValuePending: {
-    color: '#C2410C',
+    color: Colors.warning.text,
   },
-  statusValueRejected: {
-    color: '#DC2626',
+  statusValueError: {
+    color: Colors.error.text,
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-  },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    textAlign: 'center',
+    gap: Spacing.md,
   },
   infoCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 16,
+    borderColor: Colors.border.default,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: Spacing.md,
   },
   infoIcon: {
     fontSize: 24,
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   infoContent: {
     flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.xs,
   },
   infoValue: {
-    fontSize: 14,
+    fontSize: Typography.fontSize.md,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.text.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border.default,
   },
   clientCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
   },
   clientHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
   },
   clientInfo: {
     flex: 1,
   },
   clientName: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xs,
   },
   clientDetail: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
     fontWeight: '500',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginBottom: 12,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: Spacing.sm,
   },
   detailLabel: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#64748B',
+    color: Colors.text.tertiary,
   },
   detailValue: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.text.primary,
     flex: 1,
     textAlign: 'right',
+  },
+  agentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    gap: Spacing.md,
+  },
+  agentInfo: {
+    flex: 1,
+  },
+  agentName: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginBottom: 2,
+  },
+  agentDetail: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
+    fontWeight: '500',
+  },
+  accessCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    gap: Spacing.md,
+  },
+  accessIcon: {
+    fontSize: 24,
+  },
+  accessText: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    flex: 1,
   },
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
+    gap: Spacing.md,
   },
   locationIcon: {
     fontSize: 24,
-    marginRight: 12,
   },
   locationInfo: {
     flex: 1,
   },
   locationLabel: {
-    fontSize: 12,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.xs,
   },
   locationValue: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.text.primary,
   },
   commentsCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
   },
   commentsText: {
-    fontSize: 14,
-    color: '#0F172A',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
     fontWeight: '500',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   photoGrid: {
-    gap: 12,
+    gap: Spacing.md,
   },
   photoContainer: {
-    borderRadius: 12,
+    borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
+    ...Shadows.md,
   },
   photo: {
     width: '100%',
-    height: 200,
-    backgroundColor: '#F8FAFC',
+    height: 220,
+    backgroundColor: Colors.neutral[100],
   },
   photoOverlay: {
     position: 'absolute',
@@ -832,46 +566,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    padding: 8,
+    padding: Spacing.md,
     alignItems: 'center',
   },
   photoOverlayText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    color: Colors.text.inverse,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-  },
-  emptyPhotoCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyPhotoIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  emptyPhotoText: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  emptyStateIcon: {
-    fontSize: 40,
-    marginBottom: 16,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
   },
   modalContainer: {
     flex: 1,
@@ -881,9 +582,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 16,
+    paddingBottom: Spacing.lg,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   viewerCloseButton: {
@@ -900,7 +601,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   viewerTitleText: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
@@ -937,85 +638,22 @@ const styles = StyleSheet.create({
   },
   viewerErrorIcon: {
     fontSize: 48,
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   viewerErrorText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '500',
   },
   viewerBottomBar: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     alignItems: 'center',
   },
   viewerHintText: {
     color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '500',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  agentCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  agentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  agentAvatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  agentAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  agentInfo: {
-    flex: 1,
-  },
-  agentName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 2,
-  },
-  agentDetail: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  accessCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  accessIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  accessText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A',
-    flex: 1,
   },
 });

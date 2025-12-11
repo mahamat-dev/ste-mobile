@@ -1,17 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
+import { Header, Badge } from '../components/ui';
 
-// Types and helper functions
 interface BillingInfo {
   clientId: string;
   factureNo: string;
@@ -22,127 +21,38 @@ interface BillingInfo {
   status: 'paid' | 'unpaid';
 }
 
-const formatCurrency = (amount: number): string => {
-  return `${amount.toLocaleString()} FCFA`;
-};
-
-const getPaymentStatusColor = (status: 'paid' | 'unpaid'): string => {
-  return status === 'paid' ? '#10B981' : '#EF4444';
-};
-
-const getPaymentStatusText = (status: 'paid' | 'unpaid'): string => {
-  return status === 'paid' ? 'Payé' : 'Impayé';
-};
+const formatCurrency = (amount: number): string => `${amount.toLocaleString()} FCFA`;
 
 const BillingInfoScreen = () => {
   const router = useRouter();
   const { clientData } = useLocalSearchParams();
-  
-  // Parse the billing info from params
   const billingInfo: BillingInfo = clientData ? JSON.parse(clientData as string) : null;
 
-  const [clientName, setClientName] = useState<string | null>(null);
-  const animatedValue = useRef(new Animated.Value(0)).current;
-  const [displayValue, setDisplayValue] = useState(0);
-
   useEffect(() => {
-    let mounted = true;
-    
     if (!billingInfo) {
-        router.back();
-        return;
+      router.back();
     }
-
-    const loadProfile = async () => {
-      try {
-        // Try to get name from stored session first
-        const stored = await AsyncStorage.getItem('customer_data');
-        if (stored) {
-            const data = JSON.parse(stored);
-            // Verify it matches the current billing info
-            if (data.clientId === billingInfo.clientId && mounted) {
-                setClientName(data.name);
-                return;
-            }
-        }
-      } catch (_) {
-        // ignore errors
-      }
-    };
-    loadProfile();
-    
-    // Animate consumption number
-    const listener = animatedValue.addListener(({ value }) => {
-      setDisplayValue(Math.round(value));
-    });
-    
-    Animated.timing(animatedValue, {
-      toValue: billingInfo.consommationTotal,
-      duration: 2000,
-      useNativeDriver: false,
-    }).start();
-    
-    return () => {
-      mounted = false;
-      animatedValue.removeListener(listener);
-    };
-  }, [billingInfo?.clientId, billingInfo?.consommationTotal]);
+  }, [billingInfo]);
 
   if (!billingInfo) return null;
 
-  const handleBackPress = () => {
-    router.back();
-  };
+  const displayValue = billingInfo.consommationTotal;
 
-  const handleViewPaidMonths = () => {
-    router.push({
-      pathname: '/paid-months',
-      params: {
-        clientId: billingInfo.clientId,
-      },
-    });
-  };
-
-  const handleViewUnpaidMonths = () => {
-    router.push({
-      pathname: '/unpaid-months',
-      params: {
-        clientId: billingInfo.clientId,
-      },
-    });
-  };
-
-  const StatusBadge = ({ status }: { status: 'paid' | 'unpaid' }) => {
-    const backgroundColor = getPaymentStatusColor(status);
-    const text = getPaymentStatusText(status);
-    
-    return (
-      <View style={[styles.statusBadge, { backgroundColor }]}>
-        <Text style={styles.statusText}>{text}</Text>
-      </View>
-    );
-  };
-
-  const BillingCard = ({ title, children, style }: { title: string; children: React.ReactNode; style?: any }) => (
-    <View style={[styles.card, style]}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      {children}
-    </View>
-  );
+  const consumptionLevel = billingInfo.consommationTotal < 50 ? 'normal' : billingInfo.consommationTotal < 75 ? 'high' : 'very-high';
+  const consumptionText = consumptionLevel === 'normal' ? 'Consommation normale' : consumptionLevel === 'high' ? 'Consommation élevée' : 'Consommation très élevée';
+  const consumptionColor = consumptionLevel === 'normal' ? Colors.success.main : consumptionLevel === 'high' ? Colors.warning.main : Colors.error.main;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={handleBackPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.backArrowText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Informations de Facturation</Text>
-      </View>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.spacer} />
-
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <Header title="Informations de Facturation" onBack={() => router.back()} />
+      
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Invoice Card */}
-        <BillingCard title="📄 Facture" style={styles.invoiceCard}>
+        <View style={[styles.card, styles.invoiceCard]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardIcon}>📄</Text>
+            <Text style={styles.cardTitle}>Facture</Text>
+          </View>
           <View style={styles.cardContent}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Numéro de facture</Text>
@@ -157,15 +67,19 @@ const BillingInfoScreen = () => {
               <Text style={styles.infoValue}>{new Date(billingInfo.dueDate).toLocaleDateString('fr-FR')}</Text>
             </View>
             <View style={styles.divider} />
-            <View style={styles.infoRow}>
+            <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Montant total</Text>
               <Text style={styles.totalValue}>{formatCurrency(billingInfo.amount)}</Text>
             </View>
           </View>
-        </BillingCard>
+        </View>
 
         {/* Consumption Card */}
-        <BillingCard title="💧 Consommation" style={styles.consumptionCard}>
+        <View style={[styles.card, styles.consumptionCard]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardIcon}>💧</Text>
+            <Text style={styles.cardTitle}>Consommation</Text>
+          </View>
           <View style={styles.cardContent}>
             <View style={styles.consumptionDisplay}>
               <Text style={styles.consumptionNumber}>{displayValue}</Text>
@@ -173,48 +87,45 @@ const BillingInfoScreen = () => {
             </View>
             <Text style={styles.consumptionLabel}>Consommation totale</Text>
             
-            {/* Simple consumption indicator */}
             <View style={styles.consumptionIndicator}>
               <View style={styles.indicatorBar}>
-                <View 
-                  style={[
-                    styles.indicatorFill,
-                    { width: `${Math.min((billingInfo.consommationTotal / 100) * 100, 100)}%` }
-                  ]} 
-                />
+                <View style={[styles.indicatorFill, { width: `${Math.min((billingInfo.consommationTotal / 100) * 100, 100)}%`, backgroundColor: consumptionColor }]} />
               </View>
-              <Text style={styles.indicatorText}>
-                {billingInfo.consommationTotal < 50 ? 'Consommation normale' : 
-                 billingInfo.consommationTotal < 75 ? 'Consommation élevée' : 'Consommation très élevée'}
-              </Text>
+              <Text style={[styles.indicatorText, { color: consumptionColor }]}>{consumptionText}</Text>
             </View>
           </View>
-        </BillingCard>
+        </View>
 
         {/* Payment Status */}
-        <View style={styles.paymentStatusSection}>
-          <View style={styles.paymentStatusContainer}>
-            <StatusBadge status={billingInfo.status} />
-            <Text style={styles.paymentDescription}>
-              {billingInfo.status === 'paid'
-                ? 'Votre facture a été payée avec succès.'
-                : `Votre facture est en attente de paiement. Échéance: ${new Date(billingInfo.dueDate).toLocaleDateString('fr-FR')}`
-              }
-            </Text>
-          </View>
+        <View style={styles.statusSection}>
+          <Badge text={billingInfo.status === 'paid' ? 'Payé' : 'Impayé'} variant={billingInfo.status === 'paid' ? 'success' : 'error'} />
+          <Text style={styles.statusDescription}>
+            {billingInfo.status === 'paid'
+              ? 'Votre facture a été payée avec succès.'
+              : `Votre facture est en attente de paiement. Échéance: ${new Date(billingInfo.dueDate).toLocaleDateString('fr-FR')}`
+            }
+          </Text>
         </View>
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleViewPaidMonths}>
-            <Text style={styles.actionButtonText}>📅 Mois payés</Text>
+          <TouchableOpacity 
+            style={styles.primaryButton} 
+            onPress={() => router.push({ pathname: '/paid-months', params: { clientId: billingInfo.clientId } })}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonIcon}>📅</Text>
+            <Text style={styles.primaryButtonText}>Mois payés</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButtonSecondary} onPress={handleViewUnpaidMonths}>
-            <Text style={styles.actionButtonSecondaryText}>📋 Mois impayés</Text>
+          <TouchableOpacity 
+            style={styles.secondaryButton} 
+            onPress={() => router.push({ pathname: '/unpaid-months', params: { clientId: billingInfo.clientId } })}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.secondaryButtonIcon}>📋</Text>
+            <Text style={styles.secondaryButtonText}>Mois impayés</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -223,253 +134,187 @@ const BillingInfoScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    top: 15,
-    backgroundColor: '#F8FAFC',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 30,
-  },
-  headerTitle: {
-    fontSize: 18,
-    lineHeight: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    flex: 1,
-  },
-  placeholder: {
-    width: 44,
-  },
-
-  backArrowText: {
-    fontSize: 24,
-    lineHeight: 24,
-    color: '#3B82F6',
-    fontWeight: 'bold',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    backgroundColor: Colors.background.secondary,
   },
   scrollView: {
     flex: 1,
   },
-  spacer: {
-    height: 20,
-  },
-  header: {
-    padding: 24,
-    paddingBottom: 16,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#3B82F6',
-    marginBottom: 8,
-  },
-  clientId: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
+  scrollContent: {
+    padding: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 24,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius['2xl'],
+    marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-    padding: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#FAFBFC',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  cardContent: {
-    padding: 20,
+    borderColor: Colors.border.default,
+    overflow: 'hidden',
+    ...Shadows.md,
   },
   invoiceCard: {
-    borderLeftWidth: 6,
-    borderLeftColor: '#3B82F6',
-    backgroundColor: '#FEFEFF',
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary[500],
   },
   consumptionCard: {
-    borderLeftWidth: 6,
-    borderLeftColor: '#06B6D4',
-    backgroundColor: '#FEFFFE',
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.info.main,
   },
-  paymentStatusSection: {
-    marginHorizontal: 16,
-    marginBottom: 24,
-    padding: 20,
-    borderRadius: 20,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    backgroundColor: Colors.neutral[50],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
+    gap: Spacing.sm,
+  },
+  cardIcon: {
+    fontSize: 20,
+  },
+  cardTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.text.primary,
+  },
+  cardContent: {
+    padding: Spacing.xl,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   infoLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    flex: 1,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
   },
   infoValue: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
-    flex: 1,
-    textAlign: 'right',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
+    fontWeight: '600',
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 16,
+    backgroundColor: Colors.border.default,
+    marginVertical: Spacing.lg,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   totalLabel: {
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: 'bold',
-    flex: 1,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.text.primary,
   },
   totalValue: {
-    fontSize: 20,
-    color: '#3B82F6',
-    fontWeight: '700',
-    flex: 1,
-    textAlign: 'right',
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: '800',
+    color: Colors.primary[600],
   },
   consumptionDisplay: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   consumptionNumber: {
-    fontSize: 52,
+    fontSize: 56,
     fontWeight: '800',
-    color: '#0891B2',
-    letterSpacing: -1,
+    color: Colors.info.dark,
   },
   consumptionUnit: {
-    fontSize: 20,
-    color: '#6B7280',
-    marginLeft: 4,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.text.tertiary,
+    marginLeft: Spacing.sm,
+    fontWeight: '600',
   },
   consumptionLabel: {
-    fontSize: 16,
-    color: '#6B7280',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   consumptionIndicator: {
-    marginTop: 16,
+    marginTop: Spacing.md,
   },
   indicatorBar: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.neutral[200],
     borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   indicatorFill: {
     height: '100%',
-    backgroundColor: '#06B6D4',
     borderRadius: 4,
   },
   indicatorText: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '600',
     textAlign: 'center',
   },
-  paymentStatusContainer: {
+  statusSection: {
     alignItems: 'center',
+    marginBottom: Spacing['2xl'],
+    padding: Spacing.xl,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
   },
-  statusBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
-  statusText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  paymentDescription: {
-    fontSize: 14,
-    color: '#6B7280',
+  statusDescription: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
+    marginTop: Spacing.md,
   },
   buttonContainer: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 20,
-    gap: 12,
+    gap: Spacing.md,
   },
-  actionButton: {
-    backgroundColor: '#3B82F6',
+  primaryButton: {
     flex: 1,
-    paddingVertical: 18,
-    borderRadius: 50,
+    flexDirection: 'row',
+    backgroundColor: Colors.primary[500],
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    ...Shadows.md,
   },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+  primaryButtonIcon: {
+    fontSize: 18,
   },
-  actionButtonSecondary: {
-    backgroundColor: '#FFFFFF',
+  primaryButtonText: {
+    color: Colors.text.inverse,
+    fontSize: Typography.fontSize.md,
+    fontWeight: '700',
+  },
+  secondaryButton: {
     flex: 1,
-    paddingVertical: 18,
-    borderRadius: 50,
+    flexDirection: 'row',
+    backgroundColor: Colors.background.primary,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#3B82F6',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    borderColor: Colors.primary[500],
+    gap: Spacing.sm,
   },
-  actionButtonSecondaryText: {
-    color: '#3B82F6',
-    fontSize: 16,
-    fontWeight: '600',
+  secondaryButtonIcon: {
+    fontSize: 18,
   },
-  bottomSpacer: {
-    height: 40,
+  secondaryButtonText: {
+    color: Colors.primary[600],
+    fontSize: Typography.fontSize.md,
+    fontWeight: '700',
   },
 });
 

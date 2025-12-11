@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { billingApi } from '../services/api';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
+import { Header, EmptyState, Badge } from '../components/ui';
 
-const formatCurrency = (amount: number): string => {
-  return `${amount.toLocaleString()} FCFA`;
-};
+const formatCurrency = (amount: number): string => `${amount.toLocaleString()} FCFA`;
 
 const PaidMonthsScreen = () => {
   const router = useRouter();
@@ -22,7 +22,6 @@ const PaidMonthsScreen = () => {
         const bills = resp?.data?.data || resp?.data || [];
         const billsArray = Array.isArray(bills) ? bills : [];
         
-        // Filter paid bills and format them
         const paidBills = billsArray
           .filter((b: any) => b.status?.toUpperCase() === 'PAID')
           .map((b: any) => ({
@@ -35,7 +34,7 @@ const PaidMonthsScreen = () => {
           .slice(0, 6);
         
         if (mounted) setPaidMonths(paidBills);
-      } catch (e) {
+      } catch {
         if (mounted) setPaidMonths([]);
       } finally {
         if (mounted) setLoading(false);
@@ -45,12 +44,13 @@ const PaidMonthsScreen = () => {
     return () => { mounted = false; };
   }, [clientId]);
 
-  const goBack = () => router.back();
-
   const renderPaidMonthCard = ({ item, index }: { item: any; index: number }) => (
-    <View key={`${item.factureNo}-${index}`} style={styles.card}>
+    <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.monthText}>{item.moisFacturation}</Text>
+        <View style={styles.monthBadge}>
+          <Text style={styles.monthText}>{item.moisFacturation}</Text>
+        </View>
+        <Badge text="Payé" variant="success" size="sm" icon="✓" />
       </View>
       <View style={styles.cardBody}>
         <View style={styles.row}>
@@ -59,7 +59,7 @@ const PaidMonthsScreen = () => {
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Montant</Text>
-          <Text style={styles.value}>{formatCurrency(item.amount)}</Text>
+          <Text style={styles.valueHighlight}>{formatCurrency(item.amount)}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Date de paiement</Text>
@@ -75,36 +75,33 @@ const PaidMonthsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.backArrow} onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.backArrowText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mois payés</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <Header title="Mois payés" onBack={() => router.back()} />
+      
       <View style={styles.content}>
-         <View style={styles.header}>
-           <Text style={styles.subtitle}>Historique des paiements ({clientId})</Text>
-         </View>
+        <View style={styles.subheader}>
+          <Text style={styles.subtitle}>Historique des paiements</Text>
+          <View style={styles.clientBadge}>
+            <Text style={styles.clientBadgeText}>{clientId}</Text>
+          </View>
+        </View>
 
-         {loading ? (
-           <View style={styles.centerContainer}>
-             <Text style={styles.loadingText}>Chargement...</Text>
-           </View>
-         ) : paidMonths.length === 0 ? (
-           <View style={styles.centerContainer}>
-             <Text style={styles.emptyText}>Aucun paiement trouvé.</Text>
-           </View>
-         ) : (
-           <FlatList
-             data={paidMonths}
-             renderItem={renderPaidMonthCard}
-             keyExtractor={(item, index) => `${item.factureNo}-${index}`}
-             showsVerticalScrollIndicator={false}
-             contentContainerStyle={styles.flatListContent}
-           />
-         )}
-       </View>
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+            <Text style={styles.loadingText}>Chargement...</Text>
+          </View>
+        ) : paidMonths.length === 0 ? (
+          <EmptyState icon="📅" title="Aucun paiement" description="Aucun paiement trouvé pour ce client." />
+        ) : (
+          <FlatList
+            data={paidMonths}
+            renderItem={renderPaidMonthCard}
+            keyExtractor={(item, index) => `${item.factureNo}-${index}`}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.flatListContent}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 };
@@ -112,124 +109,100 @@ const PaidMonthsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 15,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3B82F6',
-    textAlign: 'center',
-    flex: 1,
-  },
-  placeholder: {
-    width: 44,
-  },
-  backArrow: {
-    paddingLeft: 10,
-  },
-  backArrowText: {
-    fontSize: 24,
-    lineHeight: 24,
-    color: '#3B82F6',
-    fontWeight: 'bold',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    backgroundColor: Colors.background.secondary,
   },
   content: {
     flex: 1,
+    padding: Spacing['2xl'],
+  },
+  subheader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xl,
+  },
+  subtitle: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
+    fontWeight: '500',
+  },
+  clientBadge: {
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
+  },
+  clientBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary[700],
+    fontWeight: '600',
   },
   flatListContent: {
-    paddingBottom: 40,
+    paddingBottom: Spacing['4xl'],
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
   },
   loadingText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  spacer: {
-    height: 20,
-  },
-  header: {
-    padding: 20,
-    paddingBottom: 16,
-    alignItems: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.md,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 24,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius['2xl'],
+    marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    borderLeftWidth: 6,
-    borderLeftColor: '#10B981',
+    borderColor: Colors.border.default,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.success.main,
+    overflow: 'hidden',
+    ...Shadows.md,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    paddingBottom: 12,
+    padding: Spacing.lg,
+    backgroundColor: Colors.neutral[50],
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#FAFBFC',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderBottomColor: Colors.border.light,
+  },
+  monthBadge: {
+    flex: 1,
   },
   monthText: {
-    fontSize: 20,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
-    color: '#1E293B',
+    color: Colors.text.primary,
+    textTransform: 'capitalize',
   },
   cardBody: {
-    padding: 20,
+    padding: Spacing.lg,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
   },
   label: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
   },
   value: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
+    fontWeight: '600',
   },
-  bottomSpacer: {
-    height: 40,
+  valueHighlight: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.success.dark,
+    fontWeight: '700',
   },
 });
 

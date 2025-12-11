@@ -5,16 +5,16 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  I18nManager,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
+import { Header, Badge, Card } from '../components/ui';
 
 const BillDetailsScreen = () => {
   const router = useRouter();
@@ -33,96 +33,55 @@ const BillDetailsScreen = () => {
         <html>
         <head>
           <style>
-            body { font-family: 'Helvetica', sans-serif; padding: 20px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .logo { font-size: 24px; font-weight: bold; color: #3B82F6; margin-bottom: 10px; }
-            .title { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
-            .subtitle { font-size: 14px; color: #666; }
-            .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
-            .section-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-            .label { font-weight: 500; color: #555; }
-            .value { font-weight: bold; }
-            .total { font-size: 18px; font-weight: bold; color: #3B82F6; margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px; }
-            .status { text-align: center; font-weight: bold; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
-            .paid { background-color: #DCFCE7; color: #166534; }
-            .unpaid { background-color: #FEE2E2; color: #991B1B; }
-            .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #888; }
+            body { font-family: 'Helvetica', sans-serif; padding: 24px; color: #1E293B; background: #F8FAFC; }
+            .header { text-align: center; margin-bottom: 32px; padding: 24px; background: white; border-radius: 16px; }
+            .logo { font-size: 28px; font-weight: bold; color: #3B82F6; margin-bottom: 8px; }
+            .title { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
+            .subtitle { font-size: 14px; color: #64748B; }
+            .section { margin-bottom: 20px; background: white; padding: 20px; border-radius: 16px; }
+            .section-title { font-size: 16px; font-weight: bold; margin-bottom: 16px; color: #0F172A; border-bottom: 2px solid #E2E8F0; padding-bottom: 8px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 12px; }
+            .label { color: #64748B; font-size: 14px; }
+            .value { font-weight: 600; color: #0F172A; font-size: 14px; }
+            .total { font-size: 20px; font-weight: bold; color: #3B82F6; margin-top: 16px; border-top: 2px solid #E2E8F0; padding-top: 16px; }
+            .status { text-align: center; font-weight: bold; padding: 12px 24px; border-radius: 12px; margin-bottom: 24px; display: inline-block; }
+            .paid { background-color: #ECFDF5; color: #065F46; }
+            .unpaid { background-color: #FEF2F2; color: #991B1B; }
+            .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #94A3B8; }
           </style>
         </head>
         <body>
           <div class="header">
-            <div class="logo">STE</div>
+            <div class="logo">💧 STE</div>
             <div class="title">Facture d'Eau</div>
             <div class="subtitle">Société Tchadienne des Eaux</div>
           </div>
-
-          <div class="status ${bill.status === 'paid' ? 'paid' : 'unpaid'}">
-            ${bill.status === 'paid' ? 'PAYÉ / PAID' : 'IMPAYÉ / UNPAID'}
+          <div style="text-align: center; margin-bottom: 24px;">
+            <span class="status ${bill.status === 'paid' ? 'paid' : 'unpaid'}">${bill.status === 'paid' ? '✓ PAYÉ' : '⏱ IMPAYÉ'}</span>
           </div>
-
           <div class="section">
-            <div class="section-title">Informations Client</div>
-            <div class="row">
-              <span class="label">Nom Client:</span>
-              <span class="value">${customerName || 'N/A'}</span>
-            </div>
-            <div class="row">
-              <span class="label">Code Client:</span>
-              <span class="value">${bill.customerCode}</span>
-            </div>
+            <div class="section-title">👤 Informations Client</div>
+            <div class="row"><span class="label">Nom Client:</span><span class="value">${customerName || 'N/A'}</span></div>
+            <div class="row"><span class="label">Code Client:</span><span class="value">${bill.customerCode}</span></div>
           </div>
-
           <div class="section">
-            <div class="section-title">Détails de la Facture</div>
-            <div class="row">
-              <span class="label">Référence:</span>
-              <span class="value">${bill.reference}</span>
-            </div>
-            <div class="row">
-              <span class="label">Période:</span>
-              <span class="value">${bill.period}</span>
-            </div>
-            <div class="row">
-              <span class="label">Date d'émission:</span>
-              <span class="value">${new Date(bill.createdAt).toLocaleDateString()}</span>
-            </div>
-            ${bill.dueDate ? `
-            <div class="row">
-              <span class="label">Date d'échéance:</span>
-              <span class="value">${new Date(bill.dueDate).toLocaleDateString()}</span>
-            </div>
-            ` : ''}
+            <div class="section-title">📄 Détails de la Facture</div>
+            <div class="row"><span class="label">Référence:</span><span class="value">${bill.reference}</span></div>
+            <div class="row"><span class="label">Période:</span><span class="value">${bill.period}</span></div>
+            <div class="row"><span class="label">Date d'émission:</span><span class="value">${new Date(bill.createdAt).toLocaleDateString()}</span></div>
+            ${bill.dueDate ? `<div class="row"><span class="label">Date d'échéance:</span><span class="value">${new Date(bill.dueDate).toLocaleDateString()}</span></div>` : ''}
           </div>
-
           <div class="section">
-            <div class="section-title">Consommation</div>
-            <div class="row">
-              <span class="label">Consommation Totale:</span>
-              <span class="value">${bill.consumption} m³</span>
-            </div>
+            <div class="section-title">💧 Consommation</div>
+            <div class="row"><span class="label">Consommation Totale:</span><span class="value">${bill.consumption} m³</span></div>
           </div>
-
           <div class="section">
-            <div class="section-title">Paiement</div>
-            <div class="row">
-              <span class="label">Montant HT:</span>
-              <span class="value">${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA</span>
-            </div>
-            <div class="row">
-              <span class="label">TVA (0%):</span>
-              <span class="value">0 FCFA</span>
-            </div>
-            <div class="row total">
-              <span class="label">Total à Payer:</span>
-              <span class="value">${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA</span>
-            </div>
+            <div class="section-title">💰 Paiement</div>
+            <div class="row"><span class="label">Montant HT:</span><span class="value">${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA</span></div>
+            <div class="row"><span class="label">TVA (0%):</span><span class="value">0 FCFA</span></div>
+            <div class="row total"><span class="label">Total à Payer:</span><span class="value">${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA</span></div>
           </div>
-
-          <div class="footer">
-            <p>Merci de votre confiance.</p>
-            <p>STE - Société Tchadienne des Eaux</p>
-          </div>
+          <div class="footer"><p>Merci de votre confiance.</p><p>STE - Société Tchadienne des Eaux</p></div>
         </body>
         </html>
       `;
@@ -131,7 +90,6 @@ const BillDetailsScreen = () => {
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
     } catch (error) {
       Alert.alert(t('common.error'), 'Impossible de générer le PDF');
-      console.error(error);
     }
   };
 
@@ -146,27 +104,21 @@ const BillDetailsScreen = () => {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>{I18nManager.isRTL ? '→' : '←'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('dashboard.billDetails')}</Text>
-        <TouchableOpacity onPress={handleDownload} style={styles.downloadButton}>
-          <Text style={styles.downloadIcon}>⬇️</Text>
-        </TouchableOpacity>
-      </View>
+      <Header 
+        title={t('dashboard.billDetails')} 
+        onBack={() => router.back()} 
+        rightElement={
+          <TouchableOpacity onPress={handleDownload} style={styles.downloadButton} activeOpacity={0.7}>
+            <Text style={styles.downloadIcon}>⬇️</Text>
+          </TouchableOpacity>
+        }
+      />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Status Banner */}
-        <View style={[
-          styles.statusBanner,
-          bill.status === 'paid' ? styles.statusPaid : styles.statusUnpaid
-        ]}>
-          <Text style={[
-            styles.statusBannerText,
-            bill.status === 'paid' ? styles.textPaid : styles.textUnpaid
-          ]}>
+        <View style={[styles.statusBanner, bill.status === 'paid' ? styles.statusPaid : styles.statusUnpaid]}>
+          <Text style={styles.statusIcon}>{bill.status === 'paid' ? '✓' : '⏱'}</Text>
+          <Text style={[styles.statusBannerText, bill.status === 'paid' ? styles.textPaid : styles.textUnpaid]}>
             {bill.status === 'paid' ? t('dashboard.billPaid') : t('dashboard.billUnpaid')}
           </Text>
         </View>
@@ -177,9 +129,7 @@ const BillDetailsScreen = () => {
           <DetailRow label={t('dashboard.invoiceRef')} value={bill.reference} />
           <DetailRow label={t('dashboard.billingPeriod')} value={bill.period} />
           <DetailRow label={t('dashboard.issueDate')} value={new Date(bill.createdAt).toLocaleDateString()} />
-          {bill.dueDate && (
-            <DetailRow label={t('dashboard.dueDate')} value={new Date(bill.dueDate).toLocaleDateString()} />
-          )}
+          {bill.dueDate && <DetailRow label={t('dashboard.dueDate')} value={new Date(bill.dueDate).toLocaleDateString()} />}
         </View>
 
         {/* Customer Info Card */}
@@ -192,10 +142,11 @@ const BillDetailsScreen = () => {
         {/* Consumption Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('dashboard.consumptionDetails')}</Text>
-          <DetailRow 
-            label={t('dashboard.totalConsumption')} 
-            value={`${bill.consumption} m³`} 
-          />
+          <View style={styles.consumptionDisplay}>
+            <Text style={styles.consumptionValue}>{bill.consumption}</Text>
+            <Text style={styles.consumptionUnit}>m³</Text>
+          </View>
+          <Text style={styles.consumptionLabel}>{t('dashboard.totalConsumption')}</Text>
         </View>
 
         {/* Amount Card */}
@@ -204,20 +155,14 @@ const BillDetailsScreen = () => {
           <DetailRow label={t('dashboard.amount')} value={`${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA`} />
           <DetailRow label={t('dashboard.vat')} value="0 FCFA" />
           <View style={styles.divider} />
-          <DetailRow 
-            label={t('dashboard.totalToPay')} 
-            value={`${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA`} 
-            isTotal 
-          />
+          <DetailRow label={t('dashboard.totalToPay')} value={`${bill.amount ? bill.amount.toLocaleString() : '0'} FCFA`} isTotal />
         </View>
       </ScrollView>
 
       {/* Footer Action */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={handleDownload}
-        >
+        <TouchableOpacity style={styles.actionButton} onPress={handleDownload} activeOpacity={0.8}>
+          <Text style={styles.actionButtonIcon}>📥</Text>
           <Text style={styles.actionButtonText}>{t('dashboard.downloadInvoice')}</Text>
         </TouchableOpacity>
       </View>
@@ -228,143 +173,155 @@ const BillDetailsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 20,
-    color: '#334155',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#0F172A',
+    backgroundColor: Colors.background.secondary,
   },
   downloadButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.neutral[50],
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border.default,
   },
   downloadIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   content: {
     flex: 1,
-    padding: 24,
+  },
+  scrollContent: {
+    padding: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
   },
   statusBanner: {
-    padding: 12,
-    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing['2xl'],
+    gap: Spacing.sm,
+    borderWidth: 2,
   },
   statusPaid: {
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1,
+    backgroundColor: Colors.success.light,
     borderColor: '#86EFAC',
   },
   statusUnpaid: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
+    backgroundColor: Colors.error.light,
     borderColor: '#FCA5A5',
   },
+  statusIcon: {
+    fontSize: 20,
+  },
   statusBannerText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
   },
   textPaid: {
-    color: '#166534',
+    color: Colors.success.text,
   },
   textUnpaid: {
-    color: '#991B1B',
+    color: Colors.error.text,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    ...Shadows.sm,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
-    marginBottom: 16,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.light,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   detailLabel: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
   },
   detailValue: {
-    fontSize: 14,
-    color: '#334155',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
+    fontWeight: '600',
   },
   totalRow: {
-    marginTop: 4,
+    marginTop: Spacing.sm,
     marginBottom: 0,
   },
   totalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.text.primary,
   },
   totalValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#3B82F6',
+    fontSize: Typography.fontSize.xl,
+    fontWeight: '800',
+    color: Colors.primary[600],
+  },
+  consumptionDisplay: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  consumptionValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: Colors.info.dark,
+  },
+  consumptionUnit: {
+    fontSize: Typography.fontSize.xl,
+    color: Colors.text.tertiary,
+    marginLeft: Spacing.sm,
+    fontWeight: '600',
+  },
+  consumptionLabel: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.tertiary,
+    textAlign: 'center',
   },
   divider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 12,
+    backgroundColor: Colors.border.default,
+    marginVertical: Spacing.md,
   },
   footer: {
-    padding: 24,
-    backgroundColor: '#FFFFFF',
+    padding: Spacing['2xl'],
+    backgroundColor: Colors.background.primary,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: Colors.border.default,
   },
   actionButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 12,
-    height: 50,
+    flexDirection: 'row',
+    backgroundColor: Colors.primary[500],
+    borderRadius: BorderRadius.lg,
+    height: 56,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: Spacing.sm,
+    ...Shadows.lg,
+  },
+  actionButtonIcon: {
+    fontSize: 20,
   },
   actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.text.inverse,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700',
   },
 });
 

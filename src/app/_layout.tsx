@@ -1,9 +1,16 @@
 import { Stack } from 'expo-router';
 import React from 'react';
+import { LogBox } from 'react-native';
 import '../i18n'; // Initialize i18n
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { AuthProvider } from '../contexts/AuthContext';
+
+// Suppress reanimated warnings from expo-router (known issue with expo-router v6 + reanimated v4)
+LogBox.ignoreLogs([
+  'Sending `onAnimatedValueUpdate` with no listeners registered',
+  "It looks like you might be using shared value's .value inside reanimated inline style",
+]);
 
 const RootLayout = () => {
   const [fontsLoaded] = useFonts({

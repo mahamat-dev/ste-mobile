@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,14 @@ import {
   Image,
   Platform,
   StatusBar,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { meterApi } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
+import { Header, Avatar, Badge, StatCard, EmptyState } from '../components/ui';
 
 interface ClientInfo {
   customerId: number;
@@ -41,7 +42,6 @@ const MeterReadingScreen = () => {
   const [isInaccessible, setIsInaccessible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [latestStatus, setLatestStatus] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState<boolean>(false);
   const [statusCheckLoading, setStatusCheckLoading] = useState<boolean>(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
@@ -50,172 +50,60 @@ const MeterReadingScreen = () => {
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [deviceLocation, setDeviceLocation] = useState<{ latitude: string; longitude: string } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
-  
-  // Animation values
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const successScaleAnim = useRef(new Animated.Value(0)).current;
-  const errorShakeAnim = useRef(new Animated.Value(0)).current;
-
-  // Pulse animation for loading
-  useEffect(() => {
-    if (isSubmitting && !showSuccessAnimation) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    } else {
-      pulseAnim.setValue(1);
-    }
-  }, [isSubmitting, showSuccessAnimation]);
-
-  // Success animation
-  useEffect(() => {
-    if (showSuccessAnimation) {
-      Animated.spring(successScaleAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 100,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      successScaleAnim.setValue(0);
-    }
-  }, [showSuccessAnimation]);
-
-  // Error shake animation
-  useEffect(() => {
-    if (submitError) {
-      Animated.sequence([
-        Animated.timing(errorShakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [submitError]);
-
-  const isSameBillingMonth = (dateStr: string): boolean => {
-    try {
-      const d = new Date(dateStr);
-      const now = new Date();
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    } catch {
-      return false;
-    }
-  };
 
   const hasApprovedReadingThisMonth = (readings: any[]): boolean => {
-    if (!readings || readings.length === 0) return false;
-    
+    if (!readings?.length) return false;
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    
-    return readings.some((reading: any) => {
-      const readingDate = new Date(reading?.readingDate || reading?.createdAt || 0);
-      const status = String(reading?.status || '').toLowerCase();
-      
-      return (
-        readingDate.getFullYear() === currentYear &&
-        readingDate.getMonth() === currentMonth &&
-        status === 'approved'
-      );
+    return readings.some((r: any) => {
+      const d = new Date(r?.readingDate || r?.createdAt || 0);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && String(r?.status || '').toLowerCase() === 'approved';
     });
   };
 
   const hasPendingReading = (readings: any[]): boolean => {
-    if (!readings || readings.length === 0) return false;
-    
-    return readings.some((reading: any) => {
-      const status = String(reading?.status || '').toLowerCase();
-      return status === 'pending' || status === 're_submitted';
-    });
+    if (!readings?.length) return false;
+    return readings.some((r: any) => ['pending', 're_submitted'].includes(String(r?.status || '').toLowerCase()));
   };
 
-  // Allow taking reading when status is validated and not blocked
-  // isInaccessible is a valid state for submission (door closed, etc.)
   const canTakeReading = statusValidated && !isBlocked;
 
-  // Get precise device location
   const getDeviceLocation = async () => {
     setIsGettingLocation(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Permission refusée',
-          'L\'accès à la localisation est nécessaire pour enregistrer le relevé.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Permission refusée', 'L\'accès à la localisation est nécessaire.');
         return;
       }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setDeviceLocation({
-        latitude: String(location.coords.latitude),
-        longitude: String(location.coords.longitude),
-      });
-    } catch (error: any) {
-      console.warn('Location error:', error);
-      Alert.alert(
-        'Erreur de localisation',
-        'Impossible d\'obtenir votre position. Veuillez vérifier que le GPS est activé.',
-        [{ text: 'OK' }]
-      );
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setDeviceLocation({ latitude: String(location.coords.latitude), longitude: String(location.coords.longitude) });
+    } catch {
+      Alert.alert('Erreur de localisation', 'Impossible d\'obtenir votre position.');
     } finally {
       setIsGettingLocation(false);
     }
   };
 
-  // Get location when client is found
   useEffect(() => {
-    if (clientInfo && !deviceLocation) {
-      getDeviceLocation();
-    }
+    if (clientInfo && !deviceLocation) getDeviceLocation();
   }, [clientInfo]);
 
   const handleSearch = async () => {
     const trimmedId = searchId.trim();
     if (!trimmedId) {
-      Alert.alert('Erreur', 'Veuillez entrer un ID client (ex: 138533800005).');
+      Alert.alert('Erreur', 'Veuillez entrer un ID client.');
       return;
     }
 
     setIsSearching(true);
-
     try {
       const response = await meterApi.getByCustomerCode(trimmedId);
-
       if (response.success && response.data) {
-        const data = response.data as {
-          meter: any;
-          customer: any;
-          lastReading: { readingValue?: number } | null;
-        };
-        const { meter, customer, lastReading } = data;
+        const { meter, customer, lastReading } = response.data as any;
+        if (!customer) throw new Error('Client introuvable.');
+        if (!meter) throw new Error("Aucun compteur associé à ce client.");
 
-        if (!customer) {
-          throw new Error('Client introuvable.');
-        }
-
-        if (!meter) {
-          throw new Error("Aucun compteur associé à ce client. Veuillez contacter l'administrateur.");
-        }
-
-        const info = {
+        const info: ClientInfo = {
           customerId: customer.customerId,
           meterId: meter.meterId,
           name: `${customer.firstName} ${customer.lastName}`,
@@ -223,71 +111,40 @@ const MeterReadingScreen = () => {
           zoneCode: customer.address?.area?.name || customer.address?.district?.name || 'N/A',
           longitude: customer.address?.longitude || '0.0',
           latitude: customer.address?.latitude || '0.0',
-          previousIndex:
-            (typeof lastReading?.readingValue === 'number'
-              ? lastReading.readingValue
-              : Number(lastReading?.readingValue)) || Number(meter.installationIndex) || 0,
-          address: customer.address
-            ? `${customer.address.streetName || ''} ${customer.address.streetNumber || ''}, ${customer.address.city?.cityName || ''}`
-            : 'N/A',
-        } as ClientInfo;
+          previousIndex: (typeof lastReading?.readingValue === 'number' ? lastReading.readingValue : Number(lastReading?.readingValue)) || Number(meter.installationIndex) || 0,
+          address: customer.address ? `${customer.address.streetName || ''} ${customer.address.streetNumber || ''}, ${customer.address.city?.cityName || ''}` : 'N/A',
+        };
         setClientInfo(info);
-
-        if (info.previousIndex && Number(info.previousIndex) > 0) {
-          setCurrentIndex(String(info.previousIndex));
-        } else {
-          setCurrentIndex('');
-        }
+        setCurrentIndex(info.previousIndex > 0 ? String(info.previousIndex) : '');
 
         setStatusCheckLoading(true);
         try {
           const readings = await meterApi.getReadings(info.meterId);
           const items = Array.isArray(readings?.data?.data) ? readings.data.data : Array.isArray(readings?.data) ? readings.data : [];
           
-          if (items.length === 0) {
-            setLatestStatus(null);
+          if (!items.length) {
             setIsBlocked(false);
             setBlockedReason(null);
             setStatusValidated(true);
+          } else if (hasPendingReading(items)) {
+            setIsBlocked(true);
+            setBlockedReason("Relevé en attente d'approbation");
+            setStatusValidated(true);
+          } else if (hasApprovedReadingThisMonth(items)) {
+            setIsBlocked(true);
+            setBlockedReason('Relevé déjà approuvé pour ce mois');
+            setStatusValidated(true);
           } else {
-            // Check for pending readings first
-            if (hasPendingReading(items)) {
-              setIsBlocked(true);
-              setBlockedReason("Relevé en attente d'approbation");
-              setStatusValidated(true);
-              setLatestStatus('PENDING');
-            }
-            // Check for approved reading this month
-            else if (hasApprovedReadingThisMonth(items)) {
-              setIsBlocked(true);
-              setBlockedReason('Relevé déjà approuvé pour ce mois');
-              setStatusValidated(true);
-              setLatestStatus('APPROVED');
-            }
-            // No blocking conditions - allow retake if rejected or no recent reading
-            else {
-              setIsBlocked(false);
+            setIsBlocked(false);
+            setStatusValidated(true);
+            const latest = [...items].sort((a: any, b: any) => new Date(b?.readingDate || b?.createdAt || 0).getTime() - new Date(a?.readingDate || a?.createdAt || 0).getTime())[0];
+            if (String(latest?.status || '').toLowerCase() === 'rejected') {
+              setBlockedReason('Dernier relevé rejeté - Vous pouvez soumettre un nouveau relevé');
+            } else {
               setBlockedReason(null);
-              setStatusValidated(true);
-              
-              // Get latest status for display
-              const latest = [...items].sort((a: any, b: any) => {
-                const bx = new Date(b?.readingDate || b?.createdAt || 0).getTime();
-                const ax = new Date(a?.readingDate || a?.createdAt || 0).getTime();
-                return bx - ax;
-              })[0];
-              const latestStatus = String(latest?.status || '').toLowerCase();
-              setLatestStatus(latest?.status || null);
-              
-              // Show helpful message if last reading was rejected
-              if (latestStatus === 'rejected') {
-                setBlockedReason('Dernier relevé rejeté - Vous pouvez soumettre un nouveau relevé');
-              }
             }
           }
-        } catch (err) {
-          console.warn('Status check failed:', err);
-          setLatestStatus(null);
+        } catch {
           setIsBlocked(false);
           setBlockedReason(null);
           setStatusValidated(false);
@@ -295,18 +152,10 @@ const MeterReadingScreen = () => {
           setStatusCheckLoading(false);
         }
       } else {
-        Alert.alert('Client non trouvé', `L'identifiant "${trimmedId}" n'existe pas.`, [
-          { text: 'Réessayer', onPress: () => setSearchId('') },
-        ]);
+        Alert.alert('Client non trouvé', `L'identifiant "${trimmedId}" n'existe pas.`);
       }
     } catch (error: any) {
-      console.warn('Search warning:', error?.message || error);
-      Alert.alert(
-        'Erreur',
-        error?.message?.includes('401') || error?.message?.toLowerCase().includes('unauthorized')
-          ? 'Accès non autorisé. Veuillez vous connecter.'
-          : error.message || 'Une erreur est survenue.'
-      );
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue.');
     } finally {
       setIsSearching(false);
     }
@@ -314,29 +163,17 @@ const MeterReadingScreen = () => {
 
   const handleChoosePhoto = async () => {
     if (Platform.OS === 'web') {
-      const libResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-      if (!libResult.canceled && libResult.assets[0]) {
-        setSelectedImage(libResult.assets[0].uri);
-      }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.8 });
+      if (!result.canceled && result.assets[0]) setSelectedImage(result.assets[0].uri);
       return;
     }
 
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     if (cameraPermission.status === 'granted') {
       try {
-        const camResult = await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          aspect: [4, 3],
-          quality: 0.8,
-        });
-        if (!camResult.canceled && camResult.assets[0]) {
-          setSelectedImage(camResult.assets[0].uri);
+        const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.8 });
+        if (!result.canceled && result.assets[0]) {
+          setSelectedImage(result.assets[0].uri);
           return;
         }
       } catch {}
@@ -344,76 +181,32 @@ const MeterReadingScreen = () => {
 
     const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (libraryPermission.status === 'granted') {
-      const libResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-      if (!libResult.canceled && libResult.assets[0]) {
-        setSelectedImage(libResult.assets[0].uri);
-      }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.8 });
+      if (!result.canceled && result.assets[0]) setSelectedImage(result.assets[0].uri);
     }
   };
 
   const handleSubmit = async () => {
-    if (!clientInfo) {
-      Alert.alert('Erreur', 'Aucun client sélectionné.');
-      return;
-    }
-
-    if (!isInaccessible && !currentIndex.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer l\'index actuel.');
-      return;
-    }
-
-    if (!isInaccessible && !selectedImage) {
-      Alert.alert('Erreur', 'Veuillez ajouter une photo du compteur.');
-      return;
-    }
-
-    // Double-check for duplicate submissions
-    if (isBlocked) {
-      Alert.alert('Erreur', blockedReason || 'Ce relevé ne peut pas être soumis.');
-      return;
-    }
+    if (!clientInfo) return Alert.alert('Erreur', 'Aucun client sélectionné.');
+    if (!isInaccessible && !currentIndex.trim()) return Alert.alert('Erreur', 'Veuillez entrer l\'index actuel.');
+    if (!isInaccessible && !selectedImage) return Alert.alert('Erreur', 'Veuillez ajouter une photo du compteur.');
+    if (isBlocked) return Alert.alert('Erreur', blockedReason || 'Ce relevé ne peut pas être soumis.');
 
     setIsSubmitting(true);
-
     try {
-      // Re-validate before submission
       const readings = await meterApi.getReadings(clientInfo.meterId);
       const items = Array.isArray(readings?.data?.data) ? readings.data.data : Array.isArray(readings?.data) ? readings.data : [];
-      
-      if (hasPendingReading(items)) {
-        throw new Error("Un relevé est déjà en attente d'approbation pour ce compteur.");
-      }
-      
-      if (hasApprovedReadingThisMonth(items)) {
-        throw new Error('Un relevé a déjà été approuvé pour ce mois.');
-      }
+      if (hasPendingReading(items)) throw new Error("Un relevé est déjà en attente d'approbation.");
+      if (hasApprovedReadingThisMonth(items)) throw new Error('Un relevé a déjà été approuvé pour ce mois.');
 
-      const normalizedIndex = currentIndex.replace(/,/g, '.').trim();
-      const parsedIndex = Number(normalizedIndex);
-      if (!isInaccessible && Number.isNaN(parsedIndex)) {
-        throw new Error('Index invalide.');
-      }
+      const parsedIndex = Number(currentIndex.replace(/,/g, '.').trim());
+      if (!isInaccessible && Number.isNaN(parsedIndex)) throw new Error('Index invalide.');
 
-      // Validate index is not less than previous
       if (!isInaccessible && parsedIndex < clientInfo.previousIndex) {
-        Alert.alert(
-          'Attention',
-          `L'index actuel (${parsedIndex}) est inférieur à l'index précédent (${clientInfo.previousIndex}). Voulez-vous continuer ?`,
-          [
-            { text: 'Annuler', style: 'cancel', onPress: () => setIsSubmitting(false) },
-            { 
-              text: 'Continuer', 
-              onPress: async () => {
-                await submitReadingData(parsedIndex);
-              }
-            }
-          ]
-        );
+        Alert.alert('Attention', `L'index actuel (${parsedIndex}) est inférieur à l'index précédent (${clientInfo.previousIndex}). Voulez-vous continuer ?`, [
+          { text: 'Annuler', style: 'cancel', onPress: () => setIsSubmitting(false) },
+          { text: 'Continuer', onPress: () => submitReadingData(parsedIndex) }
+        ]);
         return;
       }
 
@@ -427,7 +220,7 @@ const MeterReadingScreen = () => {
   const submitReadingData = async (parsedIndex: number) => {
     try {
       setUploadProgress('Préparation des données...');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(r => setTimeout(r, 300));
 
       const payload = {
         meterId: clientInfo!.meterId,
@@ -440,34 +233,28 @@ const MeterReadingScreen = () => {
       };
 
       setUploadProgress('Envoi de la photo...');
-      await new Promise(resolve => setTimeout(resolve, 400));
-
+      await new Promise(r => setTimeout(r, 400));
       setUploadProgress('Enregistrement du relevé...');
       await meterApi.submitReading(payload);
-      
       setUploadProgress('Finalisation...');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(r => setTimeout(r, 300));
       
       setSubmitError(null);
       setShowSuccessAnimation(true);
 
-      // Wait for animation then show alert
       setTimeout(() => {
         setShowSuccessAnimation(false);
-        Alert.alert('✅ Succès', 'Relevé enregistré avec succès.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              setCurrentIndex('');
-              setSelectedImage(null);
-              setIsInaccessible(false);
-              setUploadProgress('');
-              // Refresh status
-              setIsBlocked(true);
-              setBlockedReason("Relevé en attente d'approbation");
-            },
+        Alert.alert('✅ Succès', 'Relevé enregistré avec succès.', [{
+          text: 'OK',
+          onPress: () => {
+            setCurrentIndex('');
+            setSelectedImage(null);
+            setIsInaccessible(false);
+            setUploadProgress('');
+            setIsBlocked(true);
+            setBlockedReason("Relevé en attente d'approbation");
           },
-        ]);
+        }]);
       }, 1000);
     } catch (error: any) {
       setUploadProgress('');
@@ -487,87 +274,71 @@ const MeterReadingScreen = () => {
     setIsInaccessible(false);
   };
 
-  const initials = clientInfo?.name
-    ?.split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background.primary} />
 
       {isSubmitting && (
         <View style={styles.loaderOverlay}>
-          <Animated.View style={[styles.loaderCard, { transform: [{ scale: pulseAnim }] }]}>
+          <View style={styles.loaderCard}>
             {showSuccessAnimation ? (
               <>
-                <Animated.View style={[styles.successCircle, { transform: [{ scale: successScaleAnim }] }]}>
+                <View style={styles.successCircle}>
                   <Text style={styles.successIcon}>✓</Text>
-                </Animated.View>
+                </View>
                 <Text style={styles.successText}>Relevé enregistré !</Text>
               </>
             ) : (
               <>
-                <ActivityIndicator size="large" color="#3B82F6" />
+                <ActivityIndicator size="large" color={Colors.primary[500]} />
                 <Text style={styles.loaderText}>{uploadProgress || 'Envoi en cours…'}</Text>
                 <View style={styles.progressBar}>
                   <View style={styles.progressFill} />
                 </View>
               </>
             )}
-          </Animated.View>
+          </View>
         </View>
       )}
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Relevé de Compteur</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <Header title="Relevé de Compteur" onBack={() => router.back()} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Search Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Rechercher Client</Text>
           <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              value={searchId}
-              onChangeText={setSearchId}
-              placeholder="ID Client (ex: 138533800005)"
-              placeholderTextColor="#94A3B8"
-              keyboardType="numeric"
-              returnKeyType="search"
-              onSubmitEditing={handleSearch}
-            />
+            <View style={styles.searchInputWrapper}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                value={searchId}
+                onChangeText={setSearchId}
+                placeholder="ID Client (ex: 138533800005)"
+                placeholderTextColor={Colors.text.disabled}
+                keyboardType="numeric"
+                returnKeyType="search"
+                onSubmitEditing={handleSearch}
+              />
+            </View>
             <TouchableOpacity
               style={[styles.searchButton, isSearching && styles.searchButtonDisabled]}
               onPress={handleSearch}
               disabled={isSearching}
+              activeOpacity={0.8}
             >
-              {isSearching ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.searchButtonText}>Rechercher</Text>
-              )}
+              {isSearching ? <ActivityIndicator color={Colors.text.inverse} size="small" /> : <Text style={styles.searchButtonText}>Rechercher</Text>}
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Client Information */}
-        {clientInfo && (
+        {clientInfo ? (
           <>
+            {/* Client Card */}
             <View style={styles.section}>
               <View style={styles.clientCard}>
                 <View style={styles.clientHeader}>
-                  <View style={styles.avatarContainer}>
-                    <Text style={styles.avatarText}>{initials}</Text>
-                  </View>
+                  <Avatar name={clientInfo.name} size="lg" />
                   <View style={styles.clientInfo}>
                     <Text style={styles.clientName}>{clientInfo.name}</Text>
                     <Text style={styles.clientId}>ID: {clientInfo.customerId}</Text>
@@ -575,74 +346,43 @@ const MeterReadingScreen = () => {
                 </View>
 
                 {statusCheckLoading ? (
-                  <View style={styles.statusBadgePending}>
-                    <Text style={styles.statusTextPending}>Vérification…</Text>
-                  </View>
+                  <Badge text="Vérification…" variant="warning" />
                 ) : isBlocked ? (
-                  <View style={styles.statusBadgeBlocked}>
-                    <Text style={styles.statusTextBlocked}>{blockedReason}</Text>
-                  </View>
+                  <Badge text={blockedReason || ''} variant="error" />
                 ) : blockedReason ? (
-                  <View style={styles.statusBadgeWarning}>
-                    <Text style={styles.statusTextWarning}>{blockedReason}</Text>
-                  </View>
+                  <Badge text={blockedReason} variant="warning" />
                 ) : (
-                  <View style={styles.statusBadgeSuccess}>
-                    <Text style={styles.statusTextSuccess}>Prêt pour relevé</Text>
-                  </View>
+                  <Badge text="Prêt pour relevé" variant="success" icon="✓" />
                 )}
               </View>
 
               {/* Stats Grid */}
               <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statIcon}>📊</Text>
-                  <Text style={styles.statValue}>{clientInfo.meterNumber}</Text>
-                  <Text style={styles.statLabel}>Compteur</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statIcon}>📈</Text>
-                  <Text style={styles.statValue}>{clientInfo.previousIndex}</Text>
-                  <Text style={styles.statLabel}>Index Préc.</Text>
-                </View>
+                <StatCard icon="📊" value={clientInfo.meterNumber} label="Compteur" />
+                <StatCard icon="📈" value={clientInfo.previousIndex} label="Index Préc." />
               </View>
-
               <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statIcon}>📍</Text>
-                  <Text style={styles.statValue}>{clientInfo.zoneCode}</Text>
-                  <Text style={styles.statLabel}>Zone</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statIcon}>🏠</Text>
-                  <Text style={styles.statValue} numberOfLines={2}>{clientInfo.address}</Text>
-                  <Text style={styles.statLabel}>Adresse</Text>
-                </View>
+                <StatCard icon="📍" value={clientInfo.zoneCode} label="Zone" />
+                <StatCard icon="🏠" value={clientInfo.address || 'N/A'} label="Adresse" />
               </View>
 
-              {/* GPS Coordinates */}
+              {/* GPS Card */}
               <View style={styles.gpsCard}>
                 <Text style={styles.gpsIcon}>📍</Text>
                 <View style={styles.gpsInfo}>
                   <Text style={styles.gpsLabel}>Position GPS (appareil)</Text>
                   {isGettingLocation ? (
                     <View style={styles.gpsLoadingRow}>
-                      <ActivityIndicator size="small" color="#3B82F6" />
+                      <ActivityIndicator size="small" color={Colors.primary[500]} />
                       <Text style={styles.gpsLoadingText}>Localisation en cours...</Text>
                     </View>
                   ) : deviceLocation ? (
-                    <Text style={styles.gpsValue}>
-                      Lat: {deviceLocation.latitude.substring(0, 10)} | Long: {deviceLocation.longitude.substring(0, 10)}
-                    </Text>
+                    <Text style={styles.gpsValue}>Lat: {deviceLocation.latitude.substring(0, 10)} | Long: {deviceLocation.longitude.substring(0, 10)}</Text>
                   ) : (
                     <Text style={styles.gpsValueError}>Position non disponible</Text>
                   )}
                 </View>
-                <TouchableOpacity 
-                  style={styles.gpsRefreshButton} 
-                  onPress={getDeviceLocation}
-                  disabled={isGettingLocation}
-                >
+                <TouchableOpacity style={styles.gpsRefreshButton} onPress={getDeviceLocation} disabled={isGettingLocation}>
                   <Text style={styles.gpsRefreshIcon}>🔄</Text>
                 </TouchableOpacity>
               </View>
@@ -651,7 +391,6 @@ const MeterReadingScreen = () => {
             {/* Reading Input Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Saisie du Relevé</Text>
-
               <View style={styles.inputCard}>
                 <Text style={styles.inputLabel}>Index Actuel</Text>
                 <TextInput
@@ -659,7 +398,7 @@ const MeterReadingScreen = () => {
                   value={currentIndex}
                   onChangeText={setCurrentIndex}
                   placeholder="Entrez l'index"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={Colors.text.disabled}
                   keyboardType="numeric"
                   editable={canTakeReading && !statusCheckLoading}
                 />
@@ -668,12 +407,8 @@ const MeterReadingScreen = () => {
                 {selectedImage ? (
                   <View style={styles.photoPreview}>
                     <Image source={{ uri: selectedImage }} style={styles.previewImage} resizeMode="cover" />
-                    <TouchableOpacity
-                      style={styles.removePhotoButton}
-                      onPress={() => setSelectedImage(null)}
-                      disabled={!canTakeReading || statusCheckLoading}
-                    >
-                      <Text style={styles.removePhotoText}>Supprimer</Text>
+                    <TouchableOpacity style={styles.removePhotoButton} onPress={() => setSelectedImage(null)} disabled={!canTakeReading || statusCheckLoading}>
+                      <Text style={styles.removePhotoText}>✕ Supprimer</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -681,6 +416,7 @@ const MeterReadingScreen = () => {
                     style={[styles.photoButton, (!canTakeReading || statusCheckLoading) && styles.buttonDisabled]}
                     onPress={handleChoosePhoto}
                     disabled={!canTakeReading || statusCheckLoading}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.photoButtonIcon}>📷</Text>
                     <Text style={styles.photoButtonText}>Prendre une photo</Text>
@@ -699,6 +435,7 @@ const MeterReadingScreen = () => {
                     }
                   }}
                   disabled={isBlocked || statusCheckLoading}
+                  activeOpacity={0.7}
                 >
                   <View style={[styles.checkbox, isInaccessible && styles.checkboxChecked]}>
                     {isInaccessible && <Text style={styles.checkmark}>✓</Text>}
@@ -707,10 +444,10 @@ const MeterReadingScreen = () => {
                 </TouchableOpacity>
 
                 {submitError && (
-                  <Animated.View style={[styles.errorCard, { transform: [{ translateX: errorShakeAnim }] }]}>
+                  <View style={styles.errorCard}>
                     <Text style={styles.errorIcon}>⚠️</Text>
                     <Text style={styles.errorText}>{submitError}</Text>
-                  </Animated.View>
+                  </View>
                 )}
 
                 {/* Action Buttons */}
@@ -719,22 +456,20 @@ const MeterReadingScreen = () => {
                     style={[styles.resetButton, (!canTakeReading || statusCheckLoading) && styles.buttonDisabled]}
                     onPress={handleReset}
                     disabled={!canTakeReading || statusCheckLoading}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.resetButtonText}>Réinitialiser</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.submitButton,
-                      (isSubmitting || !statusValidated || isBlocked || statusCheckLoading) && styles.submitButtonDisabled,
-                    ]}
+                    style={[styles.submitButton, (isSubmitting || !statusValidated || isBlocked || statusCheckLoading) && styles.submitButtonDisabled]}
                     onPress={handleSubmit}
                     disabled={isSubmitting || !statusValidated || isBlocked || statusCheckLoading}
                     activeOpacity={0.8}
                   >
                     {isSubmitting ? (
                       <View style={styles.submitButtonContent}>
-                        <ActivityIndicator color="#FFFFFF" size="small" />
+                        <ActivityIndicator color={Colors.text.inverse} size="small" />
                         <Text style={styles.submitButtonTextLoading}>Envoi...</Text>
                       </View>
                     ) : (
@@ -748,15 +483,8 @@ const MeterReadingScreen = () => {
               </View>
             </View>
           </>
-        )}
-
-        {/* Empty State */}
-        {!clientInfo && (
-          <View style={styles.emptyStateContainer}>
-            <Text style={styles.emptyStateIcon}>🔍</Text>
-            <Text style={styles.emptyStateTitle}>Rechercher un client</Text>
-            <Text style={styles.emptyStateText}>Entrez le code client pour commencer le relevé de compteur.</Text>
-          </View>
+        ) : (
+          <EmptyState icon="🔍" title="Rechercher un client" description="Entrez le code client pour commencer le relevé de compteur." />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -767,464 +495,324 @@ const MeterReadingScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  backArrow: {
-    fontSize: 18,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-  },
-  placeholder: {
-    width: 40,
+    backgroundColor: Colors.background.primary,
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: Spacing['2xl'],
+    paddingBottom: Spacing['4xl'],
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Spacing['2xl'],
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 16,
-    textAlign: 'left',
+    color: Colors.text.primary,
+    marginBottom: Spacing.lg,
   },
   searchContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
+  },
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.lg,
+  },
+  searchIcon: {
+    fontSize: 18,
+    marginRight: Spacing.sm,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: '#0F172A',
-    height: 48,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
+    height: 52,
   },
   searchButton: {
-    paddingHorizontal: 20,
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: '#3B82F6',
+    paddingHorizontal: Spacing.xl,
+    height: 52,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary[500],
     justifyContent: 'center',
     alignItems: 'center',
+    ...Shadows.md,
   },
   searchButtonDisabled: {
-    backgroundColor: '#94A3B8',
+    backgroundColor: Colors.neutral[400],
   },
   searchButtonText: {
-    color: '#FFFFFF',
+    color: Colors.text.inverse,
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: Typography.fontSize.md,
   },
   clientCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
+    borderColor: Colors.border.default,
+    marginBottom: Spacing.lg,
   },
   clientHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3B82F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    marginBottom: Spacing.md,
+    gap: Spacing.md,
   },
   clientInfo: {
     flex: 1,
   },
   clientName: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
-    color: '#0F172A',
+    color: Colors.text.primary,
     marginBottom: 2,
   },
   clientId: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.text.tertiary,
     fontWeight: '500',
-  },
-  statusBadgePending: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  statusTextPending: {
-    color: '#92400E',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusBadgeBlocked: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  statusTextBlocked: {
-    color: '#DC2626',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusBadgeSuccess: {
-    backgroundColor: '#DCFCE7',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  statusTextSuccess: {
-    color: '#166534',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusBadgeWarning: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  statusTextWarning: {
-    color: '#92400E',
-    fontSize: 12,
-    fontWeight: '600',
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-  },
-  statIcon: {
-    fontSize: 20,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    textAlign: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
   },
   gpsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
   },
   gpsIcon: {
     fontSize: 24,
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   gpsInfo: {
     flex: 1,
   },
   gpsLabel: {
-    fontSize: 12,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.xs,
   },
   gpsValue: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#0F172A',
+    color: Colors.text.primary,
   },
   gpsValueError: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
-    color: '#DC2626',
+    color: Colors.error.main,
   },
   gpsLoadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
   gpsLoadingText: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '500',
-    color: '#64748B',
+    color: Colors.text.tertiary,
   },
   gpsRefreshButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#EFF6FF',
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
   gpsRefreshIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   inputCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border.default,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: Typography.fontSize.md,
     fontWeight: '600',
-    color: '#0F172A',
-    marginBottom: 8,
-    textAlign: 'left',
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.background.primary,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#0F172A',
-    marginBottom: 20,
+    borderColor: Colors.border.default,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.text.primary,
+    marginBottom: Spacing.xl,
   },
   inputDisabled: {
-    backgroundColor: '#F1F5F9',
-    color: '#94A3B8',
+    backgroundColor: Colors.neutral[100],
+    color: Colors.text.disabled,
   },
   photoButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingVertical: 16,
-    marginBottom: 20,
-    gap: 8,
+    backgroundColor: Colors.background.primary,
+    borderWidth: 2,
+    borderColor: Colors.border.default,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.xl,
+    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
   },
   photoButtonIcon: {
-    fontSize: 20,
+    fontSize: 24,
   },
   photoButtonText: {
-    color: '#0F172A',
-    fontSize: 14,
+    color: Colors.text.secondary,
+    fontSize: Typography.fontSize.md,
     fontWeight: '600',
   },
   photoPreview: {
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   previewImage: {
     width: '100%',
-    height: 150,
-    borderRadius: 10,
-    marginBottom: 8,
+    height: 180,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
   },
   removePhotoButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: Colors.error.light,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.error.main,
   },
   removePhotoText: {
-    color: '#DC2626',
-    fontSize: 12,
+    color: Colors.error.dark,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
   },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
-    borderRadius: 6,
-    marginRight: 12,
+    borderColor: Colors.border.dark,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: Colors.primary[500],
+    borderColor: Colors.primary[500],
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: Colors.text.inverse,
     fontSize: 14,
     fontWeight: 'bold',
   },
   checkboxLabel: {
-    fontSize: 14,
-    color: '#0F172A',
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
     fontWeight: '500',
     flex: 1,
   },
   errorCard: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+    backgroundColor: Colors.error.light,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: Colors.error.main,
   },
   errorIcon: {
     fontSize: 20,
-    marginRight: 8,
+    marginRight: Spacing.sm,
   },
   errorText: {
-    color: '#DC2626',
-    fontSize: 13,
+    color: Colors.error.dark,
+    fontSize: Typography.fontSize.sm,
     fontWeight: '600',
     flex: 1,
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
   },
   resetButton: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: Colors.background.primary,
+    borderWidth: 1.5,
+    borderColor: Colors.border.dark,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
   },
   resetButtonText: {
-    color: '#0F172A',
-    fontSize: 14,
+    color: Colors.text.primary,
+    fontSize: Typography.fontSize.md,
     fontWeight: '600',
   },
   submitButton: {
     flex: 1,
-    backgroundColor: '#3B82F6',
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: Colors.primary[500],
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.md,
   },
   submitButtonDisabled: {
-    backgroundColor: '#94A3B8',
-    shadowOpacity: 0,
-    elevation: 0,
+    backgroundColor: Colors.neutral[400],
   },
   submitButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
   submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    color: Colors.text.inverse,
+    fontSize: Typography.fontSize.md,
     fontWeight: '600',
   },
   submitButtonTextLoading: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    color: Colors.text.inverse,
+    fontSize: Typography.fontSize.md,
     fontWeight: '600',
-    marginLeft: 8,
   },
   submitButtonIcon: {
-    color: '#FFFFFF',
+    color: Colors.text.inverse,
     fontSize: 18,
     fontWeight: '600',
   },
   buttonDisabled: {
     opacity: 0.5,
-  },
-  emptyStateContainer: {
-    padding: 32,
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyStateIcon: {
-    fontSize: 40,
-    marginBottom: 16,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
   },
   loaderOverlay: {
     position: 'absolute',
@@ -1232,62 +820,58 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,
   },
   loaderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 32,
+    backgroundColor: Colors.background.primary,
+    borderRadius: BorderRadius['2xl'],
+    padding: Spacing['3xl'],
     alignItems: 'center',
     minWidth: 280,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Shadows.xl,
   },
   loaderText: {
-    marginTop: 16,
-    fontSize: 15,
-    color: '#0F172A',
+    marginTop: Spacing.lg,
+    fontSize: Typography.fontSize.md,
+    color: Colors.text.primary,
     fontWeight: '600',
     textAlign: 'center',
   },
   progressBar: {
     width: '100%',
     height: 4,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: Colors.neutral[200],
     borderRadius: 2,
-    marginTop: 16,
+    marginTop: Spacing.lg,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: Colors.primary[500],
     borderRadius: 2,
     width: '100%',
   },
   successCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#10B981',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.success.main,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   successIcon: {
-    fontSize: 32,
-    color: '#FFFFFF',
+    fontSize: 36,
+    color: Colors.text.inverse,
     fontWeight: 'bold',
   },
   successText: {
-    fontSize: 18,
+    fontSize: Typography.fontSize.xl,
     fontWeight: '700',
-    color: '#10B981',
+    color: Colors.success.main,
     textAlign: 'center',
   },
 });
