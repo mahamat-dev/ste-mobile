@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getPaidMonthsForClient, formatCurrency } from '../services/mockDataService';
+import { billingApi } from '../services/api';
+
+const formatCurrency = (amount: number): string => {
+  return `${amount.toLocaleString()} FCFA`;
+};
 
 const PaidMonthsScreen = () => {
   const router = useRouter();
@@ -14,9 +18,23 @@ const PaidMonthsScreen = () => {
     let mounted = true;
     const load = async () => {
       try {
-        const data = await getPaidMonthsForClient(clientId as string);
-        // Limit to maximum 6 items
-        if (mounted) setPaidMonths(data.slice(0, 6));
+        const resp = await billingApi.getByCustomerCode(clientId as string);
+        const bills = resp?.data?.data || resp?.data || [];
+        const billsArray = Array.isArray(bills) ? bills : [];
+        
+        // Filter paid bills and format them
+        const paidBills = billsArray
+          .filter((b: any) => b.status?.toUpperCase() === 'PAID')
+          .map((b: any) => ({
+            factureNo: b.invoiceNumber || `INV-${b.billId || b.id}`,
+            moisFacturation: new Date(b.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+            amount: b.amount || 0,
+            paymentDate: b.paidAt || b.updatedAt || b.createdAt,
+            consommationTotal: b.consumption || 0,
+          }))
+          .slice(0, 6);
+        
+        if (mounted) setPaidMonths(paidBills);
       } catch (e) {
         if (mounted) setPaidMonths([]);
       } finally {

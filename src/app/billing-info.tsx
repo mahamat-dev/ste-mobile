@@ -10,7 +10,29 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BillingInfo, formatCurrency, formatConsumption, getPaymentStatusColor, getPaymentStatusText, getClientProfile } from '../services/mockDataService';
+
+// Types and helper functions
+interface BillingInfo {
+  clientId: string;
+  factureNo: string;
+  moisFacturation: string;
+  dueDate: string;
+  amount: number;
+  consommationTotal: number;
+  status: 'paid' | 'unpaid';
+}
+
+const formatCurrency = (amount: number): string => {
+  return `${amount.toLocaleString()} FCFA`;
+};
+
+const getPaymentStatusColor = (status: 'paid' | 'unpaid'): string => {
+  return status === 'paid' ? '#10B981' : '#EF4444';
+};
+
+const getPaymentStatusText = (status: 'paid' | 'unpaid'): string => {
+  return status === 'paid' ? 'Payé' : 'Impayé';
+};
 
 const BillingInfoScreen = () => {
   const router = useRouter();
@@ -43,9 +65,6 @@ const BillingInfoScreen = () => {
                 return;
             }
         }
-
-        const profile = await getClientProfile(billingInfo.clientId);
-        if (mounted) setClientName(profile?.name ?? null);
       } catch (_) {
         // ignore errors
       }

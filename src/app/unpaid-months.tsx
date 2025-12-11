@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getUnpaidMonthsForClient, formatCurrency } from '../services/mockDataService';
+import { billingApi } from '../services/api';
+
+const formatCurrency = (amount: number): string => {
+  return `${amount.toLocaleString()} FCFA`;
+};
 
 const UnpaidMonthsScreen = () => {
   const router = useRouter();
@@ -14,9 +18,23 @@ const UnpaidMonthsScreen = () => {
     let mounted = true;
     const load = async () => {
       try {
-        const data = await getUnpaidMonthsForClient(clientId as string);
-        // Limit to maximum 6 items
-        if (mounted) setUnpaidMonths(data.slice(0, 6));
+        const resp = await billingApi.getByCustomerCode(clientId as string);
+        const bills = resp?.data?.data || resp?.data || [];
+        const billsArray = Array.isArray(bills) ? bills : [];
+        
+        // Filter unpaid bills and format them
+        const unpaidBills = billsArray
+          .filter((b: any) => b.status?.toUpperCase() !== 'PAID')
+          .map((b: any) => ({
+            factureNo: b.invoiceNumber || `INV-${b.billId || b.id}`,
+            moisFacturation: new Date(b.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+            amount: b.amount || 0,
+            dueDate: b.dueDate || b.createdAt,
+            consommationTotal: b.consumption || 0,
+          }))
+          .slice(0, 6);
+        
+        if (mounted) setUnpaidMonths(unpaidBills);
       } catch (e) {
         if (mounted) setUnpaidMonths([]);
       } finally {
