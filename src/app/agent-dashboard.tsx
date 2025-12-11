@@ -88,41 +88,55 @@ const AgentDashboardScreen = () => {
     }
     
     try {
-      // Search by customerCode (e.g., CUST-001)
+      // Search by customer ID (e.g., 138533800005)
       const search = await meterApi.getByCustomerCode(query);
 
-      if (!search.success || !search.data?.meter?.meterId) {
+      if (!search.success || !search.data) {
         throw new Error(t('dashboard.meterNotFound'));
       }
       
-      const meterId = search.data.meter.meterId;
+      const meter = search.data.meter;
       const customer = search.data.customer;
+      
+      if (!meter?.meterId) {
+        throw new Error(t('dashboard.meterNotFound'));
+      }
+      
+      const meterId = meter.meterId;
       const customerFullName = `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim();
       setCustomerName(customerFullName);
       
-      // Get readings for last 3 months with pagination
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const startDate = threeMonthsAgo.toISOString().split('T')[0];
+      // Get readings from meter's meterReading array if available
+      let readingsData: any[] = [];
       
-      const list = await meterApi.getReadings(meterId, page, 10, startDate);
+      if (meter.meterReading && Array.isArray(meter.meterReading)) {
+        // Use readings from the meter object directly
+        readingsData = meter.meterReading;
+      } else {
+        // Fallback: fetch readings via API
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const startDate = threeMonthsAgo.toISOString().split('T')[0];
+        
+        const list = await meterApi.getReadings(meterId, page, 10, startDate);
+        readingsData = Array.isArray(list?.data?.data) 
+          ? list.data.data 
+          : Array.isArray(list?.data) 
+          ? list.data 
+          : [];
+      }
       
-      // Extract readings from the response
-      const readingsData = Array.isArray(list?.data?.data) 
-        ? list.data.data 
-        : Array.isArray(list?.data) 
-        ? list.data 
-        : [];
-      
-
+      // Sort by date descending
+      readingsData.sort((a: any, b: any) => {
+        const dateA = new Date(a.readingDate || a.createdAt || 0).getTime();
+        const dateB = new Date(b.readingDate || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
       
       setReadings(readingsData);
       setSelectedMeterId(meterId);
       setCurrentPage(page);
-      
-      // Calculate total pages from response
-      const total = list?.data?.total || readingsData.length;
-      setTotalPages(Math.ceil(total / 10));
+      setTotalPages(Math.ceil(readingsData.length / 10));
     } catch (error: any) {
       Alert.alert(t('common.error'), error?.message || t('dashboard.fetchError'));
     } finally {
@@ -257,7 +271,7 @@ const AgentDashboardScreen = () => {
               onChangeText={setReadingQuery}
               placeholder={t('dashboard.customerCodePlaceholder')}
               placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
+              keyboardType="numeric"
               textAlign={I18nManager.isRTL ? 'right' : 'left'}
             />
             <TouchableOpacity 

@@ -20,6 +20,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { meterApi } from '../services/api';
 
+// Get base URL without /api suffix for image URLs
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+const BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function ReadingDetailsPage() {
@@ -173,11 +177,20 @@ export default function ReadingDetailsPage() {
   let photos: string[] = [];
   try {
     if (reading?.evidencePhotoUrl) {
-      // Single photo URL
-      photos = [reading.evidencePhotoUrl];
+      // Single photo URL - prepend base URL if it's a relative path
+      const photoUrl = reading.evidencePhotoUrl;
+      if (photoUrl.startsWith('http')) {
+        photos = [photoUrl];
+      } else {
+        photos = [`${BASE_URL}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`];
+      }
     } else if (reading?.photoUrls) {
       // Multiple photos (JSON array)
-      photos = JSON.parse(reading.photoUrls) || [];
+      const parsed = JSON.parse(reading.photoUrls) || [];
+      photos = parsed.map((url: string) => {
+        if (url.startsWith('http')) return url;
+        return `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+      });
     }
   } catch {
     photos = [];

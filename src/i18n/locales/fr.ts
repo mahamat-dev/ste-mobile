@@ -20,7 +20,7 @@ export default {
     recordIndex: "Enregistrer un index compteur",
     searchHistory: "Recherche & Historique",
     meterPlaceholder: "ID Client ou N° de Compteur",
-    customerCodePlaceholder: "Code Client (ex: CUST-001)",
+    customerCodePlaceholder: "ID Client (ex: 138533800005)",
     view: "Voir",
     meterNotFound: "Client ou Compteur introuvable",
     enterMeterNumber: "Veuillez entrer un ID client ou numéro de compteur.",
@@ -64,6 +64,7 @@ export default {
   },
   auth: {
     loginTitle: "Connexion Agent",
+    loginSubtitle: "Connectez-vous pour continuer",
     email: "Email",
     emailPlaceholder: "Entrez votre email",
     password: "Mot de Passe",

@@ -199,71 +199,42 @@ export const meterApi = {
     };
   },
 
-  getByCustomerCode: async (customerCode: string) => {
+  getByCustomerCode: async (customerIdOrCode: string) => {
     try {
-      // First, find the customer in connection-request to get customerId
-      const listResp = await apiRequest(`/connection-request?page=1&limit=100`, { method: "GET" });
-      if (!listResp?.success || !listResp?.data?.data) {
-        return { success: false, message: "Customer not found" };
-      }
-      const rows = listResp.data.data as any[];
-      const match = rows.find((r) => r?.customer?.customerCode === customerCode);
-      if (!match || !match.customer) {
-        return { success: false, message: "Customer not found" };
-      }
+      // Try to use the direct meter-readings/customer endpoint with the ID
+      const resp = await apiRequest(`/meter-readings/customer/${customerIdOrCode}`, { method: "GET" });
+      
+      if (resp?.success && resp?.data) {
+        const customerPayload = resp.data as any;
+        const meters = Array.isArray(customerPayload?.meters) ? customerPayload.meters : [];
+        const meter = meters.length > 0 ? meters[0] : null;
 
-      const customerId = match.customer.customerId;
-      const customer = match.customer;
-
-      // Use meter-readings endpoint filtered by customerId to get meter data
-      // This returns meter readings with meter and customer info
-      try {
-        const resp = await apiRequest(`/meter-readings?customerId=${customerId}&page=1&limit=50`, { method: "GET" });
-
-        if (resp?.success && resp?.data?.data && resp.data.data.length > 0) {
-          // Get the first reading which contains meter info
-          const firstReading = resp.data.data[0];
-          const meter = firstReading.meter;
-
-          // Find the latest APPROVED reading by date - only use validated index
-          const allReadings = resp.data.data;
-          const approvedReadings = allReadings.filter(
+        // Derive lastReading from the meter's meterReading list (latest APPROVED reading)
+        let lastReading: { readingValue?: number } | null = null;
+        if (meter && Array.isArray(meter.meterReading) && meter.meterReading.length > 0) {
+          const approvedReadings = meter.meterReading.filter(
             (reading: any) => String(reading?.status || '').toLowerCase() === 'approved'
           );
           
-          const latestApprovedReading = approvedReadings.length > 0
-            ? [...approvedReadings].sort(
-                (a: any, b: any) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime()
-              )[0]
-            : null;
-
-          const lastReading = latestApprovedReading
-            ? { readingValue: Number(latestApprovedReading.currentIndex) || 0 }
-            : null;
-
-          return {
-            success: true,
-            data: {
-              meter,
-              customer: meter?.customer || customer,
-              lastReading,
-            },
-          };
+          if (approvedReadings.length > 0) {
+            const latest = [...approvedReadings].sort(
+              (a: any, b: any) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime()
+            )[0];
+            lastReading = { readingValue: Number(latest.currentIndex) || 0 };
+          }
         }
-      } catch (meterErr: any) {
-        // If meter-readings endpoint fails, fall back to connection-request data
-        console.warn("meter-readings endpoint failed, using connection-request data", meterErr?.message);
+
+        return {
+          success: true,
+          data: {
+            meter,
+            customer: customerPayload,
+            lastReading,
+          },
+        };
       }
 
-      // Fallback: return connection-request data (meter might be null)
-      return {
-        success: true,
-        data: {
-          meter: match.meter,
-          customer: customer,
-          lastReading: null,
-        },
-      };
+      return { success: false, message: "Customer not found" };
     } catch (err: any) {
       return { success: false, message: err?.message || "Customer not found" };
     }

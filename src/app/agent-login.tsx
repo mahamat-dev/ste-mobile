@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   I18nManager,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 
 const AgentLoginScreen = () => {
   const router = useRouter();
-  const { agentId } = useLocalSearchParams();
   const { login } = useAuth();
   const { t } = useTranslation();
   
@@ -26,6 +27,8 @@ const AgentLoginScreen = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -37,100 +40,93 @@ const AgentLoginScreen = () => {
 
     try {
       await login(email.trim(), password.trim());
-      // Navigate to agent dashboard on successful login
       router.replace('/agent-dashboard');
     } catch (error: any) {
       Alert.alert(
         t('auth.loginError'),
         error.message || t('auth.invalidCreds'),
-        [
-          {
-            text: t('auth.retry'),
-            onPress: () => setPassword('')
-          }
-        ]
+        [{ text: t('auth.retry'), onPress: () => setPassword('') }]
       );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleBackPress = () => {
-    router.back();
-  };
-
-  const handleForgotPassword = () => {
-    Alert.alert(
-      t('auth.forgotPasswordTitle'),
-      t('auth.forgotPasswordMsg'),
-      [
-        {
-          text: 'OK'
-        }
-      ]
-    );
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header Section */}
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoIcon}>👨‍💼</Text>
+            <View style={styles.logoGradient}>
+              <Text style={styles.logoIcon}>💧</Text>
             </View>
+            <Text style={styles.brandName}>STE</Text>
             <Text style={styles.title}>{t('auth.loginTitle')}</Text>
-            <Text style={styles.subtitle}>STE</Text>
+            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
+          {/* Form Section */}
           <View style={styles.formContainer}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>{t('auth.email')}</Text>
+            <Text style={styles.label}>{t('auth.email')}</Text>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputIcon}>✉️</Text>
               <TextInput
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
                 placeholder={t('auth.emailPlaceholder')}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor="#94A3B8"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isLoading}
                 textAlign={I18nManager.isRTL ? 'right' : 'left'}
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                blurOnSubmit={false}
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>{t('auth.password')}</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder={t('auth.passwordPlaceholder')}
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isLoading}
-                  textAlign={I18nManager.isRTL ? 'right' : 'left'}
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
-                </TouchableOpacity>
-              </View>
+            <Text style={[styles.label, { marginTop: 20 }]}>{t('auth.password')}</Text>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputIcon}>🔒</Text>
+              <TextInput
+                ref={passwordRef}
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                placeholder={t('auth.passwordPlaceholder')}
+                placeholderTextColor="#94A3B8"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+                textAlign={I18nManager.isRTL ? 'right' : 'left'}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}
+              activeOpacity={0.8}
             >
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -138,21 +134,13 @@ const AgentLoginScreen = () => {
                 <Text style={styles.loginButtonText}>{t('auth.loginBtn')}</Text>
               )}
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.forgotPasswordButton}
-              onPress={handleForgotPassword}
-            >
-              <Text style={styles.forgotPasswordText}>{t('auth.forgotPassword')}</Text>
-            </TouchableOpacity>
           </View>
 
-          <View style={styles.helpContainer}>
-            <Text style={styles.helpTitle}>{t('auth.testInfo')}</Text>
-            <Text style={styles.helpText}>Email: agent@example.com</Text>
-            <Text style={styles.helpText}>{t('auth.password')}: agent123</Text>
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>© 2025 STE - Société Tchadienne des Eaux</Text>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -166,45 +154,45 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
   },
-  logoContainer: {
+  logoGradient: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#3B82F6',
+    marginBottom: 20,
   },
   logoIcon: {
-    fontSize: 40,
+    fontSize: 36,
+  },
+  brandName: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 2,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 8,
-    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#64748B',
-    marginBottom: 8,
   },
   formContainer: {
-    marginBottom: 32,
-  },
-  inputContainer: {
     marginBottom: 24,
   },
   label: {
@@ -212,46 +200,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0F172A',
     marginBottom: 8,
-    textAlign: 'left',
   },
-  input: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: '#0F172A',
-  },
-  passwordContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 12,
-  },
-  passwordInput: {
-    flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    height: 56,
+  },
+  inputIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
     fontSize: 16,
     color: '#0F172A',
+    height: '100%',
   },
   eyeButton: {
-    padding: 16,
+    padding: 8,
   },
   eyeIcon: {
-    fontSize: 20,
+    fontSize: 18,
   },
   loginButton: {
-    backgroundColor: '#3B82F6', // Primary Blue
+    backgroundColor: '#3B82F6',
     borderRadius: 12,
-    paddingVertical: 16,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginTop: 24,
   },
   loginButtonDisabled: {
     backgroundColor: '#94A3B8',
@@ -259,50 +241,15 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  forgotPasswordButton: {
+  footer: {
     alignItems: 'center',
+    marginTop: 32,
   },
-  forgotPasswordText: {
-    color: '#3B82F6', // Primary Blue
-    fontSize: 14,
-    fontWeight: '500',
-    textDecorationLine: 'underline',
-  },
-  helpContainer: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  helpTitle: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  helpText: {
+  footerText: {
     fontSize: 12,
-    color: '#64748B',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  backButton: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    color: '#64748B',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#94A3B8',
   },
 });
 

@@ -146,7 +146,7 @@ const MeterReadingScreen = () => {
   const handleSearch = async () => {
     const trimmedId = searchId.trim();
     if (!trimmedId) {
-      Alert.alert('Erreur', 'Veuillez entrer un code client (ex: CUST-001).');
+      Alert.alert('Erreur', 'Veuillez entrer un ID client (ex: 138533800005).');
       return;
     }
 
@@ -271,7 +271,7 @@ const MeterReadingScreen = () => {
   const handleChoosePhoto = async () => {
     if (Platform.OS === 'web') {
       const libResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -286,7 +286,7 @@ const MeterReadingScreen = () => {
     if (cameraPermission.status === 'granted') {
       try {
         const camResult = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
@@ -301,7 +301,7 @@ const MeterReadingScreen = () => {
     const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (libraryPermission.status === 'granted') {
       const libResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -495,9 +495,9 @@ const MeterReadingScreen = () => {
               style={styles.searchInput}
               value={searchId}
               onChangeText={setSearchId}
-              placeholder="Code Client (ex: CUST-001)"
+              placeholder="ID Client (ex: 138533800005)"
               placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
+              keyboardType="numeric"
               returnKeyType="search"
               onSubmitEditing={handleSearch}
             />
