@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { meterApi } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 interface ClientInfo {
   customerId: number;
@@ -47,6 +48,8 @@ const MeterReadingScreen = () => {
   const [statusValidated, setStatusValidated] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [deviceLocation, setDeviceLocation] = useState<{ latitude: string; longitude: string } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   
   // Animation values
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -142,6 +145,47 @@ const MeterReadingScreen = () => {
   // Allow taking reading when status is validated and not blocked
   // isInaccessible is a valid state for submission (door closed, etc.)
   const canTakeReading = statusValidated && !isBlocked;
+
+  // Get precise device location
+  const getDeviceLocation = async () => {
+    setIsGettingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission refusée',
+          'L\'accès à la localisation est nécessaire pour enregistrer le relevé.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      setDeviceLocation({
+        latitude: String(location.coords.latitude),
+        longitude: String(location.coords.longitude),
+      });
+    } catch (error: any) {
+      console.warn('Location error:', error);
+      Alert.alert(
+        'Erreur de localisation',
+        'Impossible d\'obtenir votre position. Veuillez vérifier que le GPS est activé.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  // Get location when client is found
+  useEffect(() => {
+    if (clientInfo && !deviceLocation) {
+      getDeviceLocation();
+    }
+  }, [clientInfo]);
 
   const handleSearch = async () => {
     const trimmedId = searchId.trim();
@@ -391,8 +435,8 @@ const MeterReadingScreen = () => {
         previousIndex: clientInfo!.previousIndex,
         isInaccessible,
         imageUri: selectedImage || undefined,
-        longitude: clientInfo!.longitude,
-        latitude: clientInfo!.latitude,
+        longitude: deviceLocation?.longitude || clientInfo!.longitude,
+        latitude: deviceLocation?.latitude || clientInfo!.latitude,
       };
 
       setUploadProgress('Envoi de la photo...');
@@ -578,13 +622,29 @@ const MeterReadingScreen = () => {
 
               {/* GPS Coordinates */}
               <View style={styles.gpsCard}>
-                <Text style={styles.gpsIcon}>🌍</Text>
+                <Text style={styles.gpsIcon}>📍</Text>
                 <View style={styles.gpsInfo}>
-                  <Text style={styles.gpsLabel}>Coordonnées GPS</Text>
-                  <Text style={styles.gpsValue}>
-                    Lat: {clientInfo.latitude} | Long: {clientInfo.longitude}
-                  </Text>
+                  <Text style={styles.gpsLabel}>Position GPS (appareil)</Text>
+                  {isGettingLocation ? (
+                    <View style={styles.gpsLoadingRow}>
+                      <ActivityIndicator size="small" color="#3B82F6" />
+                      <Text style={styles.gpsLoadingText}>Localisation en cours...</Text>
+                    </View>
+                  ) : deviceLocation ? (
+                    <Text style={styles.gpsValue}>
+                      Lat: {deviceLocation.latitude.substring(0, 10)} | Long: {deviceLocation.longitude.substring(0, 10)}
+                    </Text>
+                  ) : (
+                    <Text style={styles.gpsValueError}>Position non disponible</Text>
+                  )}
                 </View>
+                <TouchableOpacity 
+                  style={styles.gpsRefreshButton} 
+                  onPress={getDeviceLocation}
+                  disabled={isGettingLocation}
+                >
+                  <Text style={styles.gpsRefreshIcon}>🔄</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -936,6 +996,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#0F172A',
+  },
+  gpsValueError: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  gpsLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  gpsLoadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  gpsRefreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gpsRefreshIcon: {
+    fontSize: 16,
   },
   inputCard: {
     backgroundColor: '#F8FAFC',
